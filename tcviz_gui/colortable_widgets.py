@@ -11,7 +11,11 @@
 * PicturePane -- a real picture through the table, redrawn on every edit, that zooms
   (the mouse wheel, or the editor's buttons) and pans (a drag) -- down to every pixel of
   the saved picture; the editor's own one says which pixel is under the pointer and which
-  one is clicked. A PictureView holds the zoom, so two panes can share one.
+  one is clicked. A PictureView holds the zoom, so two panes can share one. Swiping, it
+  shows a second table right of a line you drag across it, each side exactly its table.
+* PanelSplitter -- panels side by side with a handle to drag between them: the color panel
+  folds away to give the picture its room, and comes back.
+* HelpPopup -- the editor's "?": a few paragraphs of help that stay up until clicked away.
 
 Values are in the table's own units (the model's unit_label: °C, kt or dBZ).
 
@@ -24,11 +28,11 @@ import math
 import numpy as np
 from matplotlib.colors import to_hex, to_rgb
 from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, QObject, QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (
-    QAbstractItemView, QAbstractSpinBox, QColorDialog, QDoubleSpinBox, QGridLayout, QGroupBox, QHeaderView,
-    QLabel, QLineEdit, QMenu, QPushButton, QSizePolicy, QStyledItemDelegate, QTableView, QToolTip, QVBoxLayout,
-    QWidget,
+    QAbstractItemView, QAbstractSpinBox, QApplication, QColorDialog, QDoubleSpinBox, QFrame, QGridLayout, QGroupBox,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QSizePolicy, QSplitter, QSplitterHandle,
+    QStyledItemDelegate, QTableView, QToolTip, QVBoxLayout, QWidget,
 )
 
 from tcviz import picture_overlays
@@ -679,6 +683,11 @@ class ColorPanel(QGroupBox):
                 widget.installEventFilter(self)
         if self.hex_edit is not None:
             self.hex_edit.editingFinished.connect(self._new_session)
+        # Qt's color picker fixes its own size once it is laid out -- left to happen when it
+        # is first shown, the panel asks till then for more width than it takes (20 px here,
+        # 120 with bigger fonts), and a window opened near its least width grows by that much
+        if self.dialog.layout() is not None:
+            self.dialog.layout().activate()
         self.sync()
 
     def _nudge_button(self, text, tip, what, amount):
@@ -916,6 +925,88 @@ def zoom_words(pane):
     return f"{level} (every pixel shown)"
 
 
+def _looked_up(rows, lut):
+    """(RGBA bytes, a QImage over them) of the row image `rows` through `lut`."""
+    from tcviz.colortable_preview import apply
+    buffer = apply(rows, lut)
+    h, w = rows.shape
+    return buffer, QImage(buffer.data, w, h, 4 * w, QImage.Format.Format_RGBA8888)
+
+
+class _TableColors:
+    """One table's colors over a pane's picture: the table row of every pixel as handed over
+    (`index`) and the table's colors (`lut`), looked up only when the pane is next painted;
+    and, zoomed in to every pixel, the rows of a window of the saved picture's own pixels
+    (`full_rows`, as PicturePane.set_index_image takes it) and their colors. A pane's own
+    table is one of these; in a swipe, the table compared with is another, over the same
+    pixels, with its window at the same place."""
+
+    def __init__(self):
+        self.index = None
+        self.lut = None
+        self.full_rows = None
+        self.buffer = None
+        self._image = None
+        self._dirty = False
+        # (bounds, row image) of the saved picture's own pixels around the part in view,
+        # when zoomed in to every pixel, and its colors as last looked up
+        self.window = None
+        self.window_buffer = None
+        self._window_image = None
+        self._window_dirty = False
+
+    def set_index(self, index):
+        """New rows. The window belongs to the rows it was worked out with, so it goes too."""
+        self.index = index
+        self._dirty = True
+        self.window = None
+
+    def set_lut(self, lut):
+        """New colors; whether they are new."""
+        if lut is self.lut:
+            return False
+        self.lut = lut
+        self._dirty = True
+        self._window_dirty = True
+        return True
+
+    def image(self):
+        """The picture through the table as a QImage (None without rows or colors)."""
+        if self._dirty:
+            self._dirty = False
+            if self.index is None or self.lut is None:
+                self._image = self.buffer = None
+            else:
+                self.buffer, self._image = _looked_up(self.index, self.lut)
+        return self._image
+
+    def window_image(self, bounds):
+        """The QImage of the saved picture's own pixels in `bounds` (top, bottom, left,
+        right): their rows worked out again only when the window moves, their colors only
+        after an edit. None when the rows can't be worked out."""
+        if self.window is None or self.window[0] != bounds:
+            try:
+                rows = self.full_rows(*bounds)
+            except (ValueError, MemoryError):
+                return None
+            self.window = (bounds, rows)
+            self._window_dirty = True
+        if self._window_dirty or self._window_image is None:
+            self.window_buffer, self._window_image = _looked_up(self.window[1], self.lut)
+            self._window_dirty = False
+        return self._window_image
+
+
+# How near the swipe's divider, in screen pixels either side, a press takes hold of the
+# line rather than of the picture.
+DIVIDER_REACH = 6
+# How far an arrow key moves the divider: a hundredth of the width of the picture in view;
+# with Shift, a tenth of that.
+DIVIDER_STEP = 0.01
+# The divider's grab handle, in screen pixels, and how far above the foot of the line it stands.
+_GRIP_W, _GRIP_H, _GRIP_GAP = 14.0, 40.0, 12.0
+
+
 class PicturePane(QWidget):
     """A picture through a color table. It is handed the picture as the table row of every
     pixel (set_index_image) and the table as its colors (set_lut); the colors are looked up
@@ -934,31 +1025,36 @@ class PicturePane(QWidget):
     was clicked (`clicked`, with whether Shift was held): a press and a release that do not
     move more than DRAG_START pixels apart; further than that is a drag. Pixels are counted
     in the saved picture's own: a thinned pixel as the one it was kept from
-    (PreviewSource.saved_pixel), and zoomed in to every pixel, the pixel itself."""
+    (PreviewSource.saved_pixel), and zoomed in to every pixel, the pixel itself.
+
+    Swiping (set_swipe), the pane shows a second table over the same picture: its own
+    table left of a vertical line, the other right of it, each drawn from its own rows and
+    colors and clipped at the line, thinned or up close alike -- so each side's colors are
+    exactly its table's. The line (`divider`, a fraction across the part of the picture in
+    view) stays where it is on screen while the picture zooms and pans under it; a press
+    within DIVIDER_REACH of it drags the line instead of the picture, and the arrow keys
+    move it once the pane has the keyboard (a press on the line, or Tab). Right of the line
+    the pointer is reported as `hovered_compared` and a click does nothing: that side is
+    another table."""
 
     hovered = Signal(object)                # (row, col) of the saved picture, or None
+    hovered_compared = Signal(object)       # the same, right of a swipe's line
     clicked = Signal(int, int, bool)        # row, col of the saved picture, Shift held
     shown = Signal()                        # the zoom, the place, the picture or the pane's size changed
 
     def __init__(self, parent=None, interactive=False, view=None):
         super().__init__(parent)
-        self._index = None
-        self._lut = None
-        self._buffer = None
-        self._image = None
-        self._dirty = False
+        self._main = _TableColors()
+        self._other = None              # the table compared with, swiping
         self._stride = 1
         self._full_shape = None
-        self._full_rows = None
-        # (bounds, row image) of the saved picture's own pixels around the part in view,
-        # when zoomed in to every pixel, and its colors as last looked up
-        self._window = None
-        self._window_buffer = None
-        self._window_image = None
-        self._window_dirty = False
         self._message = ""
         self._press = None              # (button, where, modifiers), from a press to its release
         self._dragged_to = None         # where a drag has got to, once the press became one
+        self.divider = 0.5
+        self._grab = None               # how far right of the line it was taken hold of, while dragged
+        self._over_line = False         # the pointer is near enough the line to take hold of it
+        self._focus_before = None       # what had the keyboard before a press on the line took it
         self.interactive = bool(interactive)
         self.view = None
         self.set_view(view if view is not None else PictureView(self))
@@ -993,23 +1089,17 @@ class PicturePane(QWidget):
         if full_shape is None:
             full_shape = (index.shape[0] * stride, index.shape[1] * stride)
         full_shape = (int(full_shape[0]), int(full_shape[1]))
-        if index is not self._index or stride != self._stride or full_shape != self._full_shape:
-            self._index, self._stride, self._full_shape = index, stride, full_shape
-            self._dirty = True
-            # the window belongs to the rows it was worked out with; the same rows (one
-            # range and table size, for the same picture) mean the same window
-            self._window = None
+        if index is not self._main.index or stride != self._stride or full_shape != self._full_shape:
+            self._stride, self._full_shape = stride, full_shape
+            # the same rows (one range and table size, for the same picture) mean the same window
+            self._main.set_index(index)
             self.update()
             self.shown.emit()
-        self._full_rows = full_rows
+        self._main.full_rows = full_rows
 
     def set_lut(self, lut):
-        if lut is self._lut:
-            return
-        self._lut = lut
-        self._dirty = True
-        self._window_dirty = True
-        self.update()
+        if self._main.set_lut(lut):
+            self.update()
 
     def set_message(self, text):
         """Show words instead of the picture ("" to show the picture again)."""
@@ -1022,21 +1112,12 @@ class PicturePane(QWidget):
 
     def image(self):
         """The picture as last handed over, as a QImage (None without one)."""
-        if self._dirty:
-            self._dirty = False
-            if self._index is None or self._lut is None:
-                self._image = self._buffer = None
-            else:
-                from tcviz.colortable_preview import apply
-                self._buffer = apply(self._index, self._lut)
-                h, w = self._index.shape
-                self._image = QImage(self._buffer.data, w, h, 4 * w, QImage.Format.Format_RGBA8888)
-        return self._image
+        return self._main.image()
 
     def rgba(self):
         """The RGBA bytes of the picture as handed over (H, W, 4), or None."""
-        self.image()
-        return self._buffer
+        self._main.image()
+        return self._main.buffer
 
     def detail_rgba(self):
         """((top, bottom, left, right), RGBA bytes) of the saved picture's own pixels the
@@ -1044,27 +1125,163 @@ class PicturePane(QWidget):
         else None."""
         if not self.full_detail() or self._detail_window() is None:
             return None
-        return self._window[0], self._window_buffer
+        return self._main.window[0], self._main.window_buffer
 
     @property
     def picture_shape(self):
         """(rows, columns) of the picture as handed over, or None."""
-        return None if self._index is None else self._index.shape
+        return None if self._main.index is None else self._main.index.shape
 
     @property
     def full_shape(self):
         """(rows, columns) of the saved picture, or None."""
-        return None if self._index is None else self._full_shape
+        return None if self._main.index is None else self._full_shape
 
     @property
     def stride(self):
         return self._stride
 
+    # ------------------------------------------------------------- swiping
+
+    def set_swipe(self, index, lut=None, full_rows=None):
+        """Swipe: show another table right of the divider -- `index` its row of every pixel
+        of the same picture (the same thinning), `lut` its colors and `full_rows` its rows
+        up close, as set_index_image and set_lut take this pane's own. None: this table
+        alone again. The line starts in the middle of each new swipe."""
+        if index is None:
+            if self._other is None:
+                return
+            self._other = None
+            self._grab = None
+            self._over_line = False
+            if self.hasFocus():
+                self._give_focus_back()
+            self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self.setMouseTracking(self.interactive)
+            self._show_cursor()
+            self.update()
+            return
+        if self._other is None:
+            self._other = _TableColors()
+            self.divider = 0.5
+            # the keyboard comes by Tab, or by a press on the line; a click on the picture
+            # leaves it where it was, so the arrow keys still move the chosen stop
+            self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+            self.setMouseTracking(True)
+        if index is not self._other.index:
+            self._other.set_index(index)
+            self.update()
+        if self._other.set_lut(lut):
+            self.update()
+        self._other.full_rows = full_rows
+
+    @property
+    def swiping(self):
+        return self._other is not None
+
+    def swipe_rgba(self):
+        """The RGBA bytes of the picture in the table compared with, as handed over (H, W,
+        4), or None when not swiping."""
+        if self._other is None:
+            return None
+        self._other.image()
+        return self._other.buffer
+
+    def swipe_detail_rgba(self):
+        """detail_rgba for the table compared with: the same window, its colors."""
+        if self._other is None or self.detail_rgba() is None:
+            return None
+        bounds = self._main.window[0]
+        if self._other.window_image(bounds) is None:
+            return None
+        return bounds, self._other.window_buffer
+
+    def _span(self):
+        """(left, right): where the picture is drawn across the pane, or None."""
+        target = None if self._message else self.picture_rect()
+        if target is None or target.isEmpty():
+            return None
+        left, right = max(0.0, target.left()), min(float(self.width()), target.right())
+        return (left, right) if right > left else None
+
+    def divider_x(self):
+        """Where the divider is, across the pane (None when not swiping, or no picture)."""
+        span = self._span() if self._other is not None else None
+        if span is None:
+            return None
+        return span[0] + self.divider * (span[1] - span[0])
+
+    def set_divider(self, fraction):
+        """Put the divider `fraction` of the way across the picture in view, kept on it."""
+        fraction = min(1.0, max(0.0, float(fraction)))
+        if fraction != self.divider:
+            self.divider = fraction
+            self.update()
+
+    def swipe_column(self):
+        """The saved picture's column the divider is at: its columns before this one are
+        drawn in this pane's table, the rest in the other (None when not swiping)."""
+        line = self.divider_x()
+        if line is None:
+            return None
+        width = self._full_shape[1]
+        return min(width, max(0, round((line - self.picture_rect().left()) / self.pixel_size())))
+
+    def swipe_fraction(self):
+        """swipe_column as a fraction of the saved picture's width, as
+        colortable_preview.swiped_picture takes it (None when not swiping)."""
+        column = self.swipe_column()
+        return None if column is None else column / self._full_shape[1]
+
+    def divider_handle_rect(self):
+        """The divider's grab handle, near its foot: a storm picture has the eye in the
+        middle, which is what the line is moved across to see (None when not swiping)."""
+        line = self.divider_x()
+        if line is None:
+            return None
+        target = self.picture_rect()
+        top, bottom = max(0.0, target.top()), min(float(self.height()), target.bottom())
+        y = max(top, bottom - _GRIP_GAP - _GRIP_H)
+        return QRectF(line - _GRIP_W / 2, y, _GRIP_W, min(_GRIP_H, bottom - y))
+
+    def near_divider(self, point):
+        """Whether a press at `point` takes hold of the divider rather than the picture."""
+        line = self.divider_x()
+        if line is None:
+            return False
+        if self.divider_handle_rect().adjusted(-2, -2, 2, 2).contains(point):
+            return True
+        target = self.picture_rect()
+        return (abs(point.x() - line) <= DIVIDER_REACH
+                and max(0.0, target.top()) <= point.y() <= min(float(self.height()), target.bottom()))
+
+    def _right_of_divider(self, point):
+        line = self.divider_x()
+        return line is not None and point.x() >= line
+
+    def _take_focus(self):
+        before = QApplication.focusWidget()
+        if before is not self:
+            self._focus_before = before
+        self.setFocus(Qt.FocusReason.MouseFocusReason)
+
+    def _give_focus_back(self):
+        """The keyboard back where it was before a press on the line took it: a click that
+        chooses a stop leaves the arrow keys to the stop, as it does without a swipe."""
+        before, self._focus_before = self._focus_before, None
+        if before is None or not self.hasFocus():
+            return
+        try:
+            if before.isVisible() and before.focusPolicy() != Qt.FocusPolicy.NoFocus:
+                before.setFocus(Qt.FocusReason.OtherFocusReason)
+        except RuntimeError:
+            pass                    # it has gone since
+
     # ------------------------------------------------------------- where it is drawn
 
     def fit_scale(self):
         """Screen pixels across one pixel of the saved picture at Fit (None without a picture)."""
-        if self._index is None:
+        if self._main.index is None:
             return None
         h, w = self._full_shape
         return min(self.width() / w, self.height() / h)
@@ -1099,7 +1316,7 @@ class PicturePane(QWidget):
         """Where the whole picture is drawn: at Fit as big as fits, in the middle, with bars
         of background either side or above and below; zoomed in, bigger than the pane and
         mostly past its edges (None without a picture)."""
-        if self._index is None:
+        if self._main.index is None:
             return None
         h, w = self._full_shape
         size = self.pixel_size()
@@ -1126,47 +1343,44 @@ class PicturePane(QWidget):
         """Whether every pixel of the saved picture in view is drawn: zoomed in on a
         thinned picture until the part in view holds no more pixels than the thinned
         picture does."""
-        if self._index is None or self._stride == 1 or self._full_rows is None or self.view.zoom <= 1.0:
+        index = self._main.index
+        if index is None or self._stride == 1 or self._main.full_rows is None or self.view.zoom <= 1.0:
+            return False
+        if self._other is not None and self._other.full_rows is None:
             return False
         window = self.visible_window()
         if window is None:
             return False
         top, bottom, left, right = window
-        return (bottom - top) * (right - left) <= self._index.size
+        return (bottom - top) * (right - left) <= index.size
 
-    def _detail_window(self):
-        """((top, bottom, left, right), QImage) of the saved picture's own pixels around
-        the part in view, or None. Worked out a little wider than the view, so a short drag
-        needs no new one, and again only when the view leaves it or it holds far more than
-        the view (after a zoom in): an edit looks up only these colors."""
+    def _detail_bounds(self):
+        """(top, bottom, left, right) of the window of the saved picture's own pixels to
+        draw up close, or None. A little wider than the view, so a short drag needs no new
+        one, and moved only when the view leaves it or it holds far more than the view
+        (after a zoom in): an edit looks up only these colors."""
         visible = self.visible_window()
-        if visible is None or self._lut is None:
+        if visible is None or self._main.lut is None:
             return None
         top, bottom, left, right = visible
         area = (bottom - top) * (right - left)
-        held = self._window[0] if self._window is not None else None
-        if held is None or not (held[0] <= top and bottom <= held[1] and held[2] <= left and right <= held[3]
-                                and (held[1] - held[0]) * (held[3] - held[2]) <= 4 * area):
-            # a margin of up to a quarter of the view on each side, the whole window no
-            # more pixels than the thinned picture
-            margin = min(0.25, max(0.0, (math.sqrt(self._index.size / area) - 1) / 2))
-            mh, mw = int((bottom - top) * margin), int((right - left) * margin)
-            h, w = self._full_shape
-            bounds = (max(0, top - mh), min(h, bottom + mh), max(0, left - mw), min(w, right + mw))
-            try:
-                rows = self._full_rows(*bounds)
-            except (ValueError, MemoryError):
-                return None
-            self._window = (bounds, rows)
-            self._window_dirty = True
-        if self._window_dirty or self._window_image is None:
-            from tcviz.colortable_preview import apply
-            rows = self._window[1]
-            self._window_buffer = apply(rows, self._lut)
-            h, w = rows.shape
-            self._window_image = QImage(self._window_buffer.data, w, h, 4 * w, QImage.Format.Format_RGBA8888)
-            self._window_dirty = False
-        return self._window[0], self._window_image
+        held = self._main.window[0] if self._main.window is not None else None
+        if held is not None and (held[0] <= top and bottom <= held[1] and held[2] <= left and right <= held[3]
+                                 and (held[1] - held[0]) * (held[3] - held[2]) <= 4 * area):
+            return held
+        # a margin of up to a quarter of the view on each side, the whole window no more
+        # pixels than the thinned picture
+        margin = min(0.25, max(0.0, (math.sqrt(self._main.index.size / area) - 1) / 2))
+        mh, mw = int((bottom - top) * margin), int((right - left) * margin)
+        h, w = self._full_shape
+        return max(0, top - mh), min(h, bottom + mh), max(0, left - mw), min(w, right + mw)
+
+    def _detail_window(self):
+        """((top, bottom, left, right), QImage) of the saved picture's own pixels around
+        the part in view (_detail_bounds) in this pane's table, or None."""
+        bounds = self._detail_bounds()
+        image = None if bounds is None else self._main.window_image(bounds)
+        return None if image is None else (bounds, image)
 
     def pixel_at(self, point):
         """(row, col) of the saved picture's pixel under `point` (in the pane), or None:
@@ -1177,7 +1391,7 @@ class PicturePane(QWidget):
         if target is None or target.isEmpty():
             return None
         detail = self.full_detail()
-        h, w = self._full_shape if detail else self._index.shape
+        h, w = self._full_shape if detail else self._main.index.shape
         col = math.floor((point.x() - target.left()) / target.width() * w)
         row = math.floor((point.y() - target.top()) / target.height() * h)
         if not (0 <= row < h and 0 <= col < w):
@@ -1205,14 +1419,16 @@ class PicturePane(QWidget):
 
     def pan_by(self, delta):
         """Move a zoomed picture by `delta` screen pixels (a QPointF), as a drag does."""
-        if self._index is None or self.view.zoom <= 1.0:
+        if self._main.index is None or self.view.zoom <= 1.0:
             return
         size = self.pixel_size()
         cx, cy = self._center()
         self.view.set(self.view.zoom, self._clamped(cx - delta.x() / size, cy - delta.y() / size, size))
 
     def _show_cursor(self):
-        if self._dragged_to is not None:
+        if self._grab is not None or (self._over_line and self._dragged_to is None):
+            self.setCursor(Qt.CursorShape.SizeHorCursor)
+        elif self._dragged_to is not None:
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
         elif self.interactive:
             self.setCursor(Qt.CursorShape.CrossCursor)
@@ -1221,7 +1437,13 @@ class PicturePane(QWidget):
         else:
             self.unsetCursor()
 
-    # ------------------------------------------------------------- the mouse
+    def _hover_line(self, over):
+        if over != self._over_line:
+            self._over_line = over
+            self._show_cursor()
+            self.update()
+
+    # ------------------------------------------------------------- the mouse and the keyboard
 
     def wheelEvent(self, event):
         steps = event.angleDelta().y() / 120.0
@@ -1232,7 +1454,16 @@ class PicturePane(QWidget):
         event.accept()
 
     def mousePressEvent(self, event):
-        if event.button() in _DRAG_BUTTONS and not self._message and self._index is not None:
+        if (event.button() == Qt.MouseButton.LeftButton and self._press is None
+                and self.near_divider(event.position())):
+            # the line before the picture: a press on it drags it, never pans or chooses
+            self._grab = event.position().x() - self.divider_x()
+            self._take_focus()
+            self._show_cursor()
+            self.update()
+            event.accept()
+            return
+        if event.button() in _DRAG_BUTTONS and not self._message and self._main.index is not None:
             # a press is a click or the start of a drag: which one, the pointer says
             self._press = (event.button(), event.position(), event.modifiers())
             self._dragged_to = None
@@ -1242,6 +1473,12 @@ class PicturePane(QWidget):
 
     def mouseMoveEvent(self, event):
         point = event.position()
+        if self._grab is not None:
+            span = self._span()
+            if span is not None:
+                self.set_divider((point.x() - self._grab - span[0]) / (span[1] - span[0]))
+            event.accept()
+            return
         if self._press is not None:
             start = self._press[1]
             if self._dragged_to is None and (point - start).manhattanLength() >= DRAG_START:
@@ -1250,11 +1487,24 @@ class PicturePane(QWidget):
             if self._dragged_to is not None:
                 self.pan_by(point - self._dragged_to)
                 self._dragged_to = point
+        if self._other is not None:
+            self._hover_line(self._press is None and self.near_divider(point))
         if self.interactive:
-            self.hovered.emit(self.pixel_at(point))
+            pixel = self.pixel_at(point)
+            if self._right_of_divider(point):
+                self.hovered_compared.emit(pixel)
+            else:
+                self.hovered.emit(pixel)
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        if self._grab is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._grab = None
+            self._over_line = self.near_divider(event.position())
+            self._show_cursor()
+            self.update()
+            event.accept()
+            return
         if self._press is None or event.button() != self._press[0]:
             super().mouseReleaseEvent(event)
             return
@@ -1263,15 +1513,36 @@ class PicturePane(QWidget):
         self._press = self._dragged_to = None
         self._show_cursor()
         event.accept()
-        if not dragged and button == Qt.MouseButton.LeftButton and self.interactive:
+        # right of a swipe's line is the table compared with: a click there chooses nothing
+        if not dragged and button == Qt.MouseButton.LeftButton and self.interactive \
+                and not self._right_of_divider(start):
             pixel = self.pixel_at(start)
             if pixel is not None:
+                self._give_focus_back()
                 self.clicked.emit(pixel[0], pixel[1], bool(modifiers & Qt.KeyboardModifier.ShiftModifier))
 
     def leaveEvent(self, event):
+        self._hover_line(False)
         if self.interactive:
             self.hovered.emit(None)
         super().leaveEvent(event)
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if self._other is not None and key in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            step = DIVIDER_STEP / 10 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else DIVIDER_STEP
+            self.set_divider(self.divider + (step if key == Qt.Key.Key_Right else -step))
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        self.update()               # the line shows it has the keyboard
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        self.update()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1282,13 +1553,17 @@ class PicturePane(QWidget):
     def paintEvent(self, _event):
         painter = QPainter(self)
         painter.fillRect(self.rect(), QColor(18, 18, 18))
-        if self._message or self._index is None or self._lut is None:
+        if self._message or self._main.index is None or self._main.lut is None:
             painter.setPen(_TEXT)
             painter.drawText(QRectF(self.rect()).adjusted(12, 12, -12, -12),
                              Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, self._message)
             painter.end()
             return
         target = self.picture_rect()
+        if self._swipe_ready():
+            self._paint_swipe(painter, target)
+            painter.end()
+            return
         size = self.pixel_size()
         detail = self._detail_window() if self.full_detail() else None
         if detail is not None:
@@ -1300,7 +1575,7 @@ class PicturePane(QWidget):
             painter.end()
             return
         image = self.image()
-        h, w = self._index.shape
+        h, w = self._main.index.shape
         across, down = target.width() / w, target.height() / h      # screen pixels per pixel shown
         # only the part in view: a picture enlarged 48 times is mostly off the pane
         c0 = max(0, math.floor(-target.left() / across))
@@ -1314,3 +1589,341 @@ class PicturePane(QWidget):
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, across < 1.0)
             painter.drawImage(where, image, QRectF(c0, r0, c1 - c0, r1 - r0))
         painter.end()
+
+    def _swipe_ready(self):
+        """Swiping, with the other table's rows and colors for this very picture."""
+        other = self._other
+        return (other is not None and other.index is not None and other.lut is not None
+                and other.index.shape == self._main.index.shape)
+
+    def _paint_swipe(self, painter, target):
+        """Both tables, each clipped to its side of the divider, then the divider."""
+        line = self.divider_x()
+        tables = (self._main, self._other)
+        pictures = None
+        if self.full_detail():
+            # up close, both from the same window of the saved picture's own pixels; should
+            # either table's not be had, both thinned, so the two sides always match
+            bounds = self._detail_bounds()
+            images = [] if bounds is None else [table.window_image(bounds) for table in tables]
+            if images and None not in images:
+                top, bottom, left, right = bounds
+                size = self.pixel_size()
+                where = QRectF(target.left() + left * size, target.top() + top * size,
+                               (right - left) * size, (bottom - top) * size)
+                pictures = [(image, where) for image in images]
+        if pictures is None:
+            pictures = [(table.image(), target) for table in tables]
+        sides = ((0.0, line), (line, float(self.width())))
+        for (image, where), (x0, x1) in zip(pictures, sides):
+            if x1 <= x0:
+                continue
+            painter.save()
+            painter.setClipRect(QRectF(x0, 0.0, x1 - x0, float(self.height())))
+            self._draw_part(painter, image, where, x0, x1)
+            painter.restore()
+        self._paint_divider(painter, line, target)
+
+    def _draw_part(self, painter, image, where, x0, x1):
+        """Draw `image`, laid over `where`, but only its pixels that show between x0 and x1
+        across the pane: a side of a swipe looks up and scales no more than it shows."""
+        w, h = image.width(), image.height()
+        across, down = where.width() / w, where.height() / h
+        c0 = max(0, math.floor((max(0.0, x0) - where.left()) / across))
+        c1 = min(w, math.ceil((min(float(self.width()), x1) - where.left()) / across))
+        r0 = max(0, math.floor(-where.top() / down))
+        r1 = min(h, math.ceil((self.height() - where.top()) / down))
+        if c1 > c0 and r1 > r0:
+            part = QRectF(where.left() + c0 * across, where.top() + r0 * down, (c1 - c0) * across, (r1 - r0) * down)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, across < 1.0)
+            painter.drawImage(part, image, QRectF(c0, r0, c1 - c0, r1 - r0))
+
+    def _paint_divider(self, painter, line, target):
+        """The line from the top of the picture in view to its bottom, dark-edged so it
+        shows on any color, and its handle; in the theme's blue while it is held, under the
+        pointer or has the keyboard."""
+        top = max(0.0, target.top())
+        bottom = min(float(self.height()), target.bottom())
+        lit = _HIGHLIGHT if (self._grab is not None or self._over_line or self.hasFocus()) else _TEXT
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(QPen(_FRAME, 4.0))
+        painter.drawLine(QPointF(line, top), QPointF(line, bottom))
+        painter.setPen(QPen(lit, 2.0))
+        painter.drawLine(QPointF(line, top), QPointF(line, bottom))
+        grip = self.divider_handle_rect()
+        painter.setPen(QPen(lit, 1.5))
+        painter.setBrush(_FRAME)
+        painter.drawRoundedRect(grip, 4.0, 4.0)
+        # an arrow each way: it moves sideways
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(_TEXT)
+        cx, cy = grip.center().x(), grip.center().y()
+        for sign in (-1, 1):
+            painter.drawPolygon(QPolygonF([QPointF(cx + sign * 1.5, cy - 5), QPointF(cx + sign * 1.5, cy + 5),
+                                           QPointF(cx + sign * 5.5, cy)]))
+
+
+# ---------------------------------------------------------------------------- PanelSplitter
+
+# Across the handle between two panels: as wide as the gap the panels had before there was
+# one, so the window needs no more room than it did.
+HANDLE_WIDTH = 6
+_EDGE = QColor(85, 85, 85)              # the edge of a pop-up, as the theme's tooltips have
+_RAISED = QColor(45, 45, 45)            # the theme's window color
+
+
+class PanelSplitter(QSplitter):
+    """Panels side by side with a handle between each two to drag -- the editor's color
+    panel and its picture. A panel allowed to fold (setCollapsible) folds away when its
+    handle is dragged over it, giving its room to the panel beside it, and comes back when
+    the handle is dragged out again or double-clicked (set_folded does the same). The
+    handle shows a grip, lit while the pointer is on it, and an arrow while the panel
+    before it is folded away, so it can be found again. `changed` follows every move of a
+    handle, a drag's or set_folded's.
+
+    A panel added with keep_width stays exactly as wide as its contents ask (its size
+    hint), so its controls never stretch or squeeze: its handle only folds it away or
+    brings it back."""
+
+    changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(Qt.Orientation.Horizontal, parent)
+        self._kept = []                 # the panels that keep their own width
+        self.setHandleWidth(HANDLE_WIDTH)
+        self.setChildrenCollapsible(False)
+        self.splitterMoved.connect(lambda _pos, _index: self._moved())
+
+    def createHandle(self):
+        return _GripHandle(self.orientation(), self)
+
+    def keep_width(self, panel):
+        """Hold `panel` (one of the splitter's) at the width its contents ask for, however
+        the handles are dragged -- or folded away, if it may be. Measured once the splitter
+        is shown, not now: a window still being built is not yet as it will be shown (a
+        part hidden after this would be counted in, and stay counted)."""
+        self._kept.append(panel)
+
+    def event(self, event):
+        # shown, or a panel's contents ask for another width -- most often once it is first
+        # shown, when its style has measured it: the splitter lays them out again now
+        relaid = event.type() in (QEvent.Type.LayoutRequest, QEvent.Type.Show)
+        if relaid:
+            self._fit_kept()
+        done = super().event(event)
+        if relaid:
+            # QSplitter tells the window it sits in nothing of its panels' new least sizes
+            # (only of a new greatest): the window would go on with the old ones
+            self.updateGeometry()
+        return done
+
+    def _fit_kept(self):
+        sizes = self.sizes()
+        respace = False
+        for panel in self._kept:
+            width = max(panel.sizeHint().width(), panel.minimumSizeHint().width())
+            if width <= 0:
+                continue
+            if (panel.minimumWidth(), panel.maximumWidth()) != (width, width):
+                panel.setFixedWidth(width)
+            i = self.indexOf(panel)
+            # QSplitter goes on giving a panel the room it first measured for it (one
+            # measured before it was shown, say), whatever width it takes since: laid out
+            # (any size not 0) and not folded away, it is given exactly its width again
+            if any(sizes) and sizes[i] not in (0, width):
+                other = i + 1 if i + 1 < len(sizes) else i - 1
+                sizes[other] = max(0, sizes[other] + sizes[i] - width)
+                sizes[i] = width
+                respace = True
+        if respace:
+            self.setSizes(sizes)
+
+    def folded(self, index):
+        """Whether panel `index` is folded away (never, before the splitter is laid out)."""
+        sizes = self.sizes()
+        return self.isCollapsible(index) and sizes[index] == 0 and any(sizes)
+
+    def set_folded(self, index, fold):
+        """Fold panel `index` away, its room going to the panel after it (or before, for
+        the last), or bring it back at its own width, from the panel that gives it room."""
+        sizes = self.sizes()
+        if not any(sizes):
+            # not laid out yet: the splitter shares out the room it gets by these
+            sizes = [max(1, self.widget(i).minimumWidth(), self.widget(i).sizeHint().width())
+                     for i in range(self.count())]
+        if fold == (sizes[index] == 0) or (fold and not self.isCollapsible(index)):
+            return
+        other = index + 1 if index + 1 < len(sizes) else index - 1
+        panel = self.widget(index)
+        width = sizes[index] if fold else max(panel.minimumWidth(), panel.sizeHint().width())
+        if fold:
+            sizes[other] += width
+            sizes[index] = 0
+        else:
+            sizes[other] = max(1, sizes[other] - width)
+            sizes[index] = width
+        self.setSizes(sizes)
+        self._moved()
+
+    def _moved(self):
+        for i in range(1, self.count()):
+            self.handle(i).update()
+        self.changed.emit()
+
+
+class _GripHandle(QSplitterHandle):
+    """A PanelSplitter's handle: a column of dots down its middle, or an arrow pointing out
+    while the panel before it is folded away; in the theme's blue under the pointer and
+    while dragged. A double-click folds that panel away or brings it back."""
+
+    def __init__(self, orientation, splitter):
+        super().__init__(orientation, splitter)
+        self._hot = False
+        self._held = False
+
+    def _before(self):
+        """The index of the panel before this handle."""
+        return self.splitter().indexOf(self) - 1
+
+    def enterEvent(self, event):
+        self._hot = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hot = False
+        self.update()
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event):
+        self._held = event.button() == Qt.MouseButton.LeftButton
+        self.update()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._held = False
+        self.update()
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        splitter, before = self.splitter(), self._before()
+        if event.button() == Qt.MouseButton.LeftButton and before >= 0 and splitter.isCollapsible(before):
+            splitter.set_folded(before, not splitter.folded(before))
+        event.accept()
+
+    def paintEvent(self, _event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(Qt.PenStyle.NoPen)
+        lit = self._hot or self._held
+        cx, cy = self.width() / 2.0, self.height() / 2.0
+        before = self._before()
+        if before >= 0 and self.splitter().folded(before):
+            # a panel folded away is easy to miss: a raised strip, and an arrow pointing the
+            # way to drag it back out
+            painter.setBrush(_EDGE)
+            painter.drawRoundedRect(QRectF(0.0, cy - 36.0, float(self.width()), 72.0), 2.5, 2.5)
+            painter.setBrush(_HIGHLIGHT if lit else _TEXT)
+            painter.drawPolygon(QPolygonF([QPointF(cx - 1.5, cy - 8.0), QPointF(cx - 1.5, cy + 8.0),
+                                           QPointF(cx + 2.5, cy)]))
+            return
+        painter.setBrush(_HIGHLIGHT if lit else _DIM)
+        for k in range(-2, 3):
+            painter.drawEllipse(QPointF(cx, cy + 7.0 * k), 1.4, 1.4)
+
+
+# ---------------------------------------------------------------------------- HelpPopup
+
+class HelpPopup(QFrame):
+    """A few paragraphs of help that stay up until clicked away (a pop-up window): what the
+    editor's "?" button shows. Under the help, optionally, a line of `note` and a button
+    (`action`: (text, tip, slot), the pop-up closing once it is pressed)."""
+
+    WIDTH = 440
+
+    def __init__(self, parent, text="", note="", action=None):
+        super().__init__(parent, Qt.WindowType.Popup)
+        self.setObjectName("help_popup")
+        self.setStyleSheet(f"QFrame#help_popup {{ background-color: {_RAISED.name()}; "
+                           f"border: 1px solid {_EDGE.name()}; }}")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        self.label = QLabel(text)
+        self.label.setWordWrap(True)
+        self.label.setFixedWidth(self.WIDTH)
+        layout.addWidget(self.label)
+        self.note = self.button = None
+        if note or action:
+            layout.addSpacing(6)
+            row = QHBoxLayout()
+            self.note = QLabel(note)
+            self.note.setWordWrap(True)
+            self.note.setStyleSheet(f"color: {_DIM.name()};")
+            row.addWidget(self.note, 1)
+            if action:
+                words, tip, slot = action
+                self.button = QPushButton(words)
+                self.button.setToolTip(tip)
+                self.button.clicked.connect(lambda _checked=False: (self.hide(), slot()))
+                row.addWidget(self.button, 0, Qt.AlignmentFlag.AlignBottom)
+            layout.addLayout(row)
+
+    def text(self):
+        return self.label.text()
+
+    def set_text(self, text):
+        self.label.setText(text)
+        self.adjustSize()
+
+    def show_under(self, widget):
+        """Open just below `widget`, right edges together, kept on the screen."""
+        self.adjustSize()
+        corner = widget.mapToGlobal(widget.rect().bottomRight())
+        x, y = corner.x() - self.width() + 1, corner.y() + 3
+        screen = widget.screen()
+        if screen is not None:
+            room = screen.availableGeometry()
+            x = max(room.left(), min(x, room.right() - self.width() + 1))
+            if y + self.height() > room.bottom() + 1:
+                # no room below: above it instead
+                y = max(room.top(), widget.mapToGlobal(widget.rect().topLeft()).y() - self.height() - 3)
+        self.move(x, y)
+        self.show()
+
+
+def measure_afresh(window):
+    """Forget every size the layouts in `window` have worked out, so it is measured as it is
+    now. For a window about to be first shown: Qt measures a widget's own layout again only
+    when that widget is shown, after the window has taken its least size -- so a part a
+    splitter measured while the window was being built, and that was hidden since, would
+    still be counted in that size."""
+    for widget in (window, *window.findChildren(QWidget)):
+        # what a layout holds of each widget's sizes, and each layout's own sums
+        widget.updateGeometry()
+        if widget.layout() is not None:
+            _invalidate(widget.layout())
+
+
+def measure_layout_afresh(layout):
+    """Forget the sizes `layout` and every layout inside it have worked out. Qt measures a
+    layout inside another again only when its own widget is shown, not when a widget in it
+    is shown or hidden: one that was, would be counted (or not) as it was before."""
+    _invalidate(layout)
+
+
+def _invalidate(layout):
+    layout.invalidate()
+    for i in range(layout.count()):
+        inner = layout.itemAt(i).layout()
+        if inner is not None:
+            _invalidate(inner)
+
+
+def screen_room(widget):
+    """(width, height) of the screen space `widget`'s window may use -- the screen's, less
+    its taskbars -- or None when there is no screen to ask."""
+    screen = widget.screen()
+    if screen is None:
+        return None
+    room = screen.availableGeometry()
+    return room.width(), room.height()

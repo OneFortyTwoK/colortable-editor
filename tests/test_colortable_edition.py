@@ -116,6 +116,34 @@ SAMPLES = [
 ]
 
 
+def _draft_file(folder, draft_id, entry, mode, original=None, saved_at="2026-10-02T21:05:00+00:00"):
+    """A draft as an editor leaves one in `folder`/drafts (tcviz.colortable_drafts)."""
+    path = Path(folder) / "drafts" / f"draft-{draft_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"format": 1, "app": "Colortable Editor", "app_version": "1.0.0", "saved_at": saved_at,
+                                "mode": mode, "original": original, "source": None, "base": None, "entry": entry}),
+                    encoding="utf-8")
+    return path
+
+
+def _shown_editor(*args, **kwargs):
+    """The editor on screen (offscreen), as a person has it: only an editor on screen keeps
+    a draft. Its draft timer is stopped; each test starts it with a change."""
+    from tcviz_gui.pages.colortable_editor_dialog import ColortableEditorDialog
+    d = ColortableEditorDialog(*args, **kwargs)
+    d._searched = True
+    d.show()
+    d._draft_timer.stop()
+    return d
+
+
+def _fire(d):
+    """The draft timer a change started runs out now, rather than in its 2 s."""
+    assert d._draft_timer.isActive() and d._draft_timer.interval() == 2000
+    d._draft_timer.stop()
+    d._draft_timer.timeout.emit()
+
+
 def _smoke_env(tmp_path):
     env = dict(os.environ, COLORTABLE_EDITOR_SMOKE="1", QT_QPA_PLATFORM="offscreen", PYTHONIOENCODING="utf-8")
     env[edition.CONFIG_DIR_ENV] = str(tmp_path / "editor")
@@ -154,17 +182,23 @@ def test_the_editor_starts_without_tcviz_s_engine_or_its_table_collection(tmp_pa
 
 def test_the_smoke_run_draws_a_sample_through_a_table_and_exits_0(tmp_path):
     env = dict(_smoke_env(tmp_path), COLORTABLE_EDITOR_SMOKE_FILE=str(tmp_path / "smoke.txt"))
+    # a table left unsaved by an earlier run: the smoke run must not offer it (a window would
+    # wait forever for an answer) nor touch it
+    left = _draft_file(tmp_path / "editor", "a" * 32, {"name": "left_over", "stops": _STOPS, "vmin_c": -90.0,
+                                                        "vmax_c": 30.0}, "add")
+    before = left.read_bytes()
     run = subprocess.run([sys.executable, "-m", "colortable_editor"], cwd=ROOT, env=env, capture_output=True,
                          text=True, encoding="utf-8", timeout=180)
     assert run.returncode == 0, run.stderr[-3000:]
     line = run.stdout.strip().splitlines()[-1]
-    assert line.startswith("Colortable Editor 1.0.0 smoke: 6 tables listed"), line
+    assert line.startswith("Colortable Editor 1.1.0 smoke: 6 tables listed"), line
     assert "drawn through ott2" in line and str(tmp_path / "editor") in line
     # the older samples and the font were found where the program keeps them
     assert "and 2 older ones" in line and "font JetBrainsMonoNerdFontMono-Bold.ttf" in line
     # the Windows program has no console: the same line goes to the file a build check reads
     assert (tmp_path / "smoke.txt").read_text(encoding="utf-8") == line + "\n"
-    assert _files_under(tmp_path / "editor") == [], "the smoke run wrote something"
+    assert _files_under(tmp_path / "editor") == [f"drafts/{left.name}"], "the smoke run wrote something"
+    assert left.read_bytes() == before
 
 
 def test_a_program_without_a_console_can_still_run_jobs(monkeypatch):
@@ -193,7 +227,7 @@ def test_tcviz_is_the_default_and_only_the_two_editions_exist(monkeypatch):
 
 def test_importing_the_package_does_not_switch_the_edition():
     import colortable_editor
-    assert colortable_editor.__version__ == "1.0.0"
+    assert colortable_editor.__version__ == "1.1.0"
     assert edition.current() == edition.TCVIZ
 
 
@@ -214,7 +248,7 @@ def test_the_edition_has_exactly_its_six_built_in_tables_and_no_words_about_them
 
 # ------------------------------------------------------------------- the store
 
-def test_tables_favorites_and_deleted_tables_go_only_to_the_edition_folder(editor_edition):
+def test_tables_favorites_and_deleted_tables_go_only_to_the_edition_folder(qapp, editor_edition):
     from tcviz import colortable_library
     folder = editor_edition["editor"]
     colortable_library.save("mine", _STOPS, vmin_c=-90.0, vmax_c=30.0)
@@ -227,6 +261,29 @@ def test_tables_favorites_and_deleted_tables_go_only_to_the_edition_folder(edito
     assert colortable_library.load_favorites() == ["ours"]
     assert [t.name for t in colortable_library.tables()] == ["ours"]
     assert colortable_library.restore()["name"] == "bd05_copy"
+    # the earlier versions (History) only once a table is saved over, in the same folder
+    colortable_library.save("ours", _STOPS, original="ours", vmin_c=-90.0, vmax_c=30.0)
+    assert "colortables.history.json" not in _files_under(folder)
+    colortable_library.save("ours", _STOPS, original="ours", vmin_c=-80.0, vmax_c=30.0)
+    kept = {"colortables.json", "colortables.json.bak", "colortables.deleted.json", "favorite_palettes.json",
+            "colortables.history.json"}
+    assert set(_files_under(folder)) == kept
+    # a table with unsaved changes in the editor waits in drafts/ (a moment after the change),
+    # which goes once it is saved
+    d = _shown_editor(entry=colortable_library.get("ours"), mode="edit")
+    d.add_stop(-40.0, "#ff0000")
+    _fire(d)
+    assert set(_files_under(folder)) == kept | {f"drafts/draft-{d._draft_id}.json"}
+    d._on_save()
+    assert set(_files_under(folder)) == kept and not (folder / "drafts").exists()
+    d.deleteLater()
+    # how the windows were left, in layout.json, once a window on screen was changed and
+    # closed -- the editor above was not changed, so it left none
+    d = _shown_editor(entry=colortable_library.get("ours"), mode="edit")
+    d.resize(d.width() + 40, d.height())
+    d.reject()
+    d.deleteLater()
+    assert set(_files_under(folder)) == kept | {"layout.json"}
     # tcviz's own places were never touched
     assert not editor_edition["tcviz_store"].parent.exists()
     assert _files_under(editor_edition["tcviz_config"]) == []
@@ -332,9 +389,12 @@ def test_built_in_tables_are_copied_not_changed(qapp, editor_edition):
     manage._on_edit()
     assert len(opened) == 1 and isinstance(opened[0], ColortableEditorDialog)
     assert opened[0]._mode == "copy" and opened[0]._source == "bd05" and opened[0].name_edit.text() == "bd05_copy"
+    # a copy of a built-in starts with no description (it used to say "Copy of bd05")
+    assert opened[0].desc_edit.text() == ""
     opened[0].deleteLater()
     manage._on_duplicate()
     assert manage.selected_name() == "bd05_copy" and not manage._tables["bd05_copy"].builtin
+    assert manage._tables["bd05_copy"].entry["description"] == ""
     manage.close()
 
 
@@ -484,6 +544,155 @@ def test_dates_in_the_manage_window_need_no_glibc_formats():
     assert _when_text(datetime.datetime(2026, 10, 2, 9, 30)) == "Oct 2, 9:30 AM"
 
 
+def test_swipe_shows_a_built_in_table_on_the_same_picture(qapp, editor_edition):
+    """Swipe in the edition: a built-in table drawn into the editor's own picture right of
+    the line, exactly, its name over that side; the swiped picture to copy or save; and How
+    to use says how."""
+    from matplotlib.colors import Normalize
+
+    from colortable_editor import about
+    from tcviz import colorize, colortable_preview
+    from tcviz_gui.pages.colortable_editor_dialog import ColortableEditorDialog
+    d = ColortableEditorDialog()
+    assert not d.swipe_check.isVisibleTo(d)
+    d.compare_combo.setCurrentIndex(d.compare_combo.findData("bd05"))
+    d.flush()
+    assert d.swipe_check.isVisibleTo(d) and d.compare_pane.holder.isVisibleTo(d)
+    d.swipe_check.setChecked(True)
+    d.flush()
+    pane = d.picture_pane
+    assert pane.swiping and not d.compare_pane.holder.isVisibleTo(d) and d.swipe_caption.text() == "bd05"
+    cmap, norm, vmax, vmin = colortable_registry.get("bd05")
+    norm = norm or Normalize(vmin=vmin, vmax=vmax)
+    source = d._preview
+    assert np.array_equal(pane.swipe_rgba(), colorize.rgba(source.values, cmap.with_extremes(bad="black"), norm))
+    pane.resize(400, 400)
+    pane.set_divider(0.25)
+    d.scale_check.setChecked(False)
+    image, factor = d.shared_picture()
+    own, own_max, own_min = d.model.build()
+    mine, _f = colortable_preview.full_picture(source, own, Normalize(vmin=own_min, vmax=own_max), own_max, own_min, "C",
+                                               scale=False)
+    theirs, _f = colortable_preview.full_picture(source, cmap, norm, vmax, vmin, "C", scale=False)
+    split = pane.swipe_column() * factor
+    got = np.asarray(image)
+    assert 0 < split < image.width and image.size == mine.size
+    assert np.array_equal(got[:, :split], np.asarray(mine)[:, :split])
+    assert np.array_equal(got[:, split:], np.asarray(theirs)[:, split:])
+    d.swipe_check.setChecked(False)
+    d.flush()
+    assert not pane.swiping and d.compare_pane.holder.isVisibleTo(d)
+    assert "Swipe" in about.how_to_use_text()
+    d.deleteLater()
+
+
+def test_share_card_makes_one_picture_of_the_table_and_the_storm(qapp, editor_edition, tmp_path, monkeypatch):
+    """Share card… in the edition: a card of the table's name, its scale -- the table's own
+    colors, row for row -- and the sample with its two lines under it, made by the program
+    by name; saved as a PNG file; and How to use says how."""
+    from matplotlib.colors import Normalize
+    from PIL import Image
+
+    from colortable_editor import about
+    from tcviz import colorize, share_card
+    from tcviz_gui.pages import colortable_editor_dialog
+    from tcviz_gui.pages.share_card_dialog import ShareCardDialog
+    manifest = _manifest(editor_edition["editor"].parent / "samples", SAMPLES)
+    monkeypatch.setattr(edition, "samples_manifest_path", lambda: manifest)
+    monkeypatch.setattr(colortable_editor_dialog, "_last_save_folder", None)
+    d = colortable_editor_dialog.ColortableEditorDialog()
+    d.compare_combo.setCurrentIndex(d.compare_combo.findData("ott2"))
+    d.flush()
+    windows = []
+    d._run = lambda window: windows.append(window) or 0
+    window = d.open_share_card()
+    assert isinstance(window, ShareCardDialog) and windows == [window]
+    name = d.name_edit.text()
+    assert window.title_edit.text() == f"{name} vs ott2"
+    pictures = d.card_pictures()
+    assert [p.tables[0].name for p in pictures] == [name, "ott2"]
+    regions = {}
+    card = share_card.share_card(pictures, window.title_edit.text(), "Made with Colortable Editor", regions=regions)
+    assert np.array_equal(np.asarray(window.current_card()), np.asarray(card))
+    assert [n for n, _box in regions["names"]] == [name, "ott2"]
+    assert regions["captions"][0][1] == [SAMPLES[0]["description"], SAMPLES[0]["credit"]]
+    assert regions["footer"][1] == "Made with Colortable Editor"
+    # ott2's scale is ott2's colors, row for row
+    cmap, norm, vmax, vmin = colortable_registry.get("ott2")
+    left, top, right, bottom = regions["bars"][1]["box"]
+    values = vmax - (np.arange(bottom - top) + 0.5) / (bottom - top) * (vmax - vmin)
+    want = colorize.rgba(values[:, None], cmap.with_extremes(bad="black"), norm or Normalize(vmin=vmin, vmax=vmax))
+    assert np.array_equal(np.asarray(card)[top:bottom, left:right], np.broadcast_to(want[..., :3], (bottom - top,
+                                                                                                    right - left, 3)))
+    d._ask_save_path = lambda suggested: str(tmp_path / "card")
+    path = window.save_card()
+    assert path == tmp_path / "card.png" and window.status.text().startswith("Saved the card, ")
+    with Image.open(path) as saved:
+        assert np.array_equal(np.asarray(saved), np.asarray(card))
+    assert "Share card" in about.how_to_use_text()
+    d.undo_stack.setClean()
+    d.deleteLater()
+
+
+def test_other_storms_shows_the_table_on_several_storms_at_once(qapp, editor_edition, tmp_path, monkeypatch):
+    """Other storms… in the edition: the storms of the table's kind ticked, the water-vapor
+    ones listed after them; each drawn in the table exactly (water vapor at 0 to -90 °C),
+    read on a background thread; what is ticked kept in the edition's own layout.json; a
+    storm shown in the editor on a click; Save grid… writing one picture of them all; and
+    How to use saying how."""
+    import time
+
+    from matplotlib.colors import Normalize
+    from PIL import Image
+    from PySide6.QtCore import QEventLoop
+
+    from colortable_editor import about
+    from tcviz import colorize, colortable_preview, window_layout
+    from tcviz_gui.pages import colortable_editor_dialog
+    from tcviz_gui.pages.storm_grid_dialog import StormGridDialog
+    manifest = _manifest(editor_edition["editor"].parent / "samples", SAMPLES)
+    monkeypatch.setattr(edition, "samples_manifest_path", lambda: manifest)
+    monkeypatch.setattr(colortable_editor_dialog, "_last_save_folder", None)
+
+    def wait(until):
+        deadline = time.monotonic() + 20
+        while not until() and time.monotonic() < deadline:
+            qapp.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
+            time.sleep(0.01)
+        assert until()
+
+    d = colortable_editor_dialog.ColortableEditorDialog()
+    assert d.storm_grid_btn.text() == "Other storms…" and d.storm_grid_btn.isEnabled()
+    g = d.open_storm_grid()
+    assert isinstance(g, StormGridDialog) and g.isVisible()
+    assert g.ticked() == ["melissa_ir"] and list(g.checks) == ["melissa_ir", "melissa_wv"]
+    g.checks["melissa_wv"].setChecked(True)
+    wait(lambda: not g.busy())
+    g.redraw()
+    cmap, vmax, vmin = d.drawn_table()
+    for sample_id, (top, bottom) in (("melissa_ir", (vmax, vmin)),
+                                     ("melissa_wv", (colortable_preview.WV_VMAX_K, colortable_preview.WV_VMIN_K))):
+        values = colortable_preview.load_bundled(d._bundled[sample_id]).full
+        want = colorize.rgba(values, cmap.with_extremes(bad="black"), Normalize(vmin=bottom, vmax=top))
+        assert np.array_equal(g.cell(sample_id).picture.rgba, want), sample_id
+    assert window_layout.get("storm_grid") == {"ir": ["melissa_ir", "melissa_wv"]}
+    assert _files_under(editor_edition["editor"]) == ["layout.json"]
+    assert g.open_in_editor("melissa_wv") and d.picture_combo.currentData() == "bundled:melissa_wv"
+    d._ask_save_path = lambda suggested: str(tmp_path / "storms.png")
+    assert g.save_grid()
+    wait(lambda: g.last_handover is not None and not g.busy())
+    assert g.status.text().startswith("Saved the grid, ")
+    with Image.open(tmp_path / "storms.png") as image:
+        assert image.size == g.card.size and image.width <= 2400
+    assert "Other storms…" in about.how_to_use_text()
+    g.close()
+    assert window_layout.get("storm_grid")["size"] == [g.width(), g.height()]
+    # tcviz's own places were never touched
+    assert not editor_edition["tcviz_store"].parent.exists()
+    d.undo_stack.setClean()
+    d.deleteLater()
+
+
 def test_save_picture_offers_the_system_pictures_folder(qapp, editor_edition, tmp_path, monkeypatch):
     from PySide6.QtCore import QStandardPaths
 
@@ -501,6 +710,231 @@ def test_save_picture_offers_the_system_pictures_folder(qapp, editor_edition, tm
     d.deleteLater()
 
 
+# ------------------------------------------------------------------- History
+
+def test_earlier_versions_load_back_into_the_editor_unsaved(qapp, editor_edition, monkeypatch):
+    """Saved over, a table keeps the version it replaced; the editor's History… lists it, and
+    Restore this version loads it as one undo step, writing nothing until Save."""
+    from PySide6.QtWidgets import QMessageBox
+
+    from tcviz import colortable_history, colortable_library
+    from tcviz_gui.pages.colortable_editor_dialog import ColortableEditorDialog
+    from tcviz_gui.pages.colortable_history_dialog import ColortableHistoryDialog
+    from tcviz_gui.pages.manage_colortables_dialog import ManageColortablesDialog
+    monkeypatch.setattr(QMessageBox, "question", lambda *a: QMessageBox.StandardButton.No)
+    folder = editor_edition["editor"]
+    colortable_library.save("mine", _STOPS, description="first", vmin_c=-90.0, vmax_c=30.0)
+    fresh = ColortableEditorDialog(entry=colortable_library.get("mine"), mode="edit")
+    assert not fresh.history_btn.isEnabled()                  # saved once: no versions yet
+    fresh.deleteLater()
+    colortable_library.save("mine", [(0.0, "#000000"), (0.5, "#ff0000"), (1.0, "#ffffff")], original="mine",
+                            description="second", vmin_c=-90.0, vmax_c=30.0)
+    files = {f: (folder / f).read_bytes() for f in _files_under(folder)}
+
+    d = ColortableEditorDialog(entry=colortable_library.get("mine"), mode="edit")
+    assert d.history_btn.isEnabled()
+    windows = []
+
+    def answer(window):
+        windows.append(window)
+        window.version_list.setCurrentRow(0)
+        window.action_btn.click()
+        return window.result()
+    d._run = answer
+    d._on_history()
+    assert isinstance(windows[0], ColortableHistoryDialog)
+    assert windows[0].version_list.item(0).text().startswith("v1 · Today ")
+    assert d.status.text() == "Version v1 loaded; press Save to keep it."
+    assert [c for _v, c in d.model.stops] == ["#000000", "#808080", "#ffffff"] and d.desc_edit.text() == "first"
+    assert {f: (folder / f).read_bytes() for f in _files_under(folder)} == files      # nothing written
+    d.undo_stack.undo()
+    assert [c for _v, c in d.model.stops] == ["#000000", "#ff0000", "#ffffff"] and d.desc_edit.text() == "second"
+    d.undo_stack.redo()
+    d._on_save()
+    assert colortable_library.get("mine")["description"] == "first"
+    assert [v.label for v in colortable_history.versions("mine")] == ["v2", "v1"]
+    d.deleteLater()
+
+    # the main window's list: right-click a table for History…; a built-in one has none
+    manage = ManageColortablesDialog()
+    _menu, actions = manage.row_menu("mine")
+    assert {a.text(): a.isEnabled() for a in actions}["History…"]
+    _menu, actions = manage.row_menu("bd05")
+    assert not {a.text(): a.isEnabled() for a in actions}["History…"]
+    assert "Hide" not in [a.text() for a in actions]
+    manage.close()
+
+
+# --------------------------------------------------------- closed before saving
+
+def _offer(window, answer):
+    """window.offer_draft_recovery(), the recovery window answered by `answer(recovery)`."""
+    shown = []
+
+    def run(dialog):
+        shown.append(dialog)
+        return answer(dialog)
+    window._run = run
+    result = window.offer_draft_recovery()
+    assert result is (shown[0] if shown else None)
+    return result
+
+
+def test_a_table_left_unsaved_by_a_crash_is_offered_at_start_and_saved(qapp, editor_edition, monkeypatch):
+    """The editor keeps an unsaved table in drafts/; the program dies with it open; at the
+    next start the main window offers it, Open puts it in the editor marked changed, and
+    Save keeps it -- a new, never-saved table as well as one of the person's own."""
+    from PySide6.QtWidgets import QMessageBox
+
+    from colortable_editor.main_window import MainWindow
+    from tcviz import colortable_library
+    from tcviz_gui.pages.colortable_editor_dialog import ColortableEditorDialog
+    asked = []
+    monkeypatch.setattr(QMessageBox, "question", lambda _p, _t, text, *a: asked.append(text)
+                        or QMessageBox.StandardButton.No)
+    folder = editor_edition["editor"]
+    colortable_library.save("my_storm", _STOPS, description="before", vmin_c=-90.0, vmax_c=30.0)
+    edited = _shown_editor(entry=colortable_library.get("my_storm"), mode="edit")
+    edited.add_stop(-40.0, "#ff0000")
+    edited.desc_edit.setText("after")
+    _fire(edited)
+    new = _shown_editor()
+    new.name_edit.setText("brand_new")
+    _fire(new)
+    wanted = {"my_storm": edited._entry_now()["stops"], "brand_new": new._entry_now()["stops"]}
+    for d in (edited, new):             # the program dies: nothing closes, the drafts stay
+        d._autosaving = False
+        d.hide()
+        d.undo_stack.setClean()
+        d.deleteLater()
+    assert len(_files_under(folder / "drafts")) == 2
+
+    window = MainWindow()
+    opened = []
+
+    def answer_editor(dialog):
+        assert isinstance(dialog, ColortableEditorDialog) and dialog.has_changes() and dialog.save_btn.isEnabled()
+        opened.append(dialog._original)
+        dialog.reject()                                 # closing asks first; No keeps it open
+        assert asked[-1] == "Close the editor and lose the changes you made to this table?"
+        dialog._on_save()
+        return 1
+
+    def answer(recovery):
+        assert recovery.heading.text() == "Colortable Editor closed before these tables were saved:"
+        labels = sorted(label for label, _remark in recovery.row_texts())
+        assert labels[0].startswith("my_storm (changed today at ")
+        assert labels[1].startswith("new table 'brand_new' (changed today at ")
+        recovery._run = answer_editor
+        for row in list(recovery.rows.values()):
+            row.open_btn.click()
+        assert not recovery.rows and recovery.result() == 1     # closed by itself
+        return 1
+    _offer(window, answer)
+    assert sorted(opened, key=str) == sorted(["my_storm", None], key=str)
+    for name, stops in wanted.items():
+        assert [tuple(s) for s in colortable_library.get(name)["stops"]] == [tuple(s) for s in stops], name
+    assert colortable_library.get("my_storm")["description"] == "after"
+    assert not (folder / "drafts").exists()
+    assert window.panel.selected_name() in wanted         # the list shows what was saved
+    # nothing left: the next start offers nothing
+    assert _offer(window, lambda _d: pytest.fail("a window was shown")) is None
+    window.close()
+
+
+def test_discard_decide_later_and_damaged_drafts(qapp, editor_edition, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from colortable_editor.main_window import MainWindow
+    monkeypatch.setattr(QMessageBox, "question", lambda *a: QMessageBox.StandardButton.Yes)
+    folder = editor_edition["editor"]
+    entry = {"name": "kept_one", "stops": _STOPS, "vmin_c": -90.0, "vmax_c": 30.0}
+    keep = _draft_file(folder, "b" * 32, entry, "add")
+    drop = _draft_file(folder, "c" * 32, dict(entry, name="dropped_one"), "add", saved_at="2026-10-01T10:00:00+00:00")
+    (folder / "drafts" / f"draft-{'d' * 32}.json").write_text("{damaged", encoding="utf-8")
+    window = MainWindow()
+
+    def answer(recovery):
+        assert [line.text() for line in recovery.damaged_lines] == [
+            f"The unsaved changes in draft-{'d' * 32}.json could not be read, so they can't be opened. The file "
+            "was removed."]
+        recovery.rows["c" * 32].discard_btn.click()
+        assert list(recovery.rows) == ["b" * 32]
+        assert recovery.later_btn.text() == "Decide later"
+        recovery.later_btn.click()
+        return recovery.result()
+    _offer(window, answer)
+    assert keep.exists() and not drop.exists()
+    assert _files_under(folder / "drafts") == [keep.name]
+    window.close()
+
+
+# --------------------------------------------------------- the windows' layout
+
+def test_the_windows_open_as_they_were_left_and_view_resets_them(qapp, editor_edition, monkeypatch):
+    """layout.json in the edition's folder: the main window and the editor open the size
+    they were left, fitted to the screen, the editor's color panel folded away or not;
+    View -> Reset window layout (and the editor's own Reset layout) forget it all."""
+    from colortable_editor.main_window import MainWindow
+    from tcviz import window_layout
+    from tcviz_gui import colortable_widgets
+    from tcviz_gui.pages.colortable_editor_dialog import _help
+    folder = editor_edition["editor"]
+    room = [(1920, 1050)]
+    monkeypatch.setattr(colortable_widgets, "screen_room", lambda _widget: room[0])
+    assert window_layout.layout_path() == folder / "layout.json"
+
+    # nothing kept: as the windows first open, and closing one that never showed keeps nothing
+    window = MainWindow()
+    assert window.size().toTuple() == (900, 560)
+    window.close()
+    assert not folder.exists()
+    # shown, made bigger, closed: kept; and opened again at that size
+    window = MainWindow()
+    window.show()
+    window.resize(1000, 640)
+    window.close()
+    assert window_layout.get("main_window") == {"size": [1000, 640], "maximized": False}
+    assert _files_under(folder) == ["layout.json"]
+    assert MainWindow().size().toTuple() == (1000, 640)
+    # a size left on a big screen, on a laptop's: fitted to it
+    window_layout.update("main_window", {"size": [2400, 1300]})
+    room[0] = (1366, 728)
+    assert MainWindow().size().toTuple() == (1326, 668)
+
+    # the editor: its own record beside the main window's, the color panel folded away
+    d = _shown_editor()
+    assert d.help_popup.text() == _help(d.model) and d.help_btn.toolTip() == "How to use this window"
+    d.fold_colors(True)
+    d.resize(1300, 700)
+    d.reject()
+    d.deleteLater()
+    assert window_layout.get("editor")["splitter"][0] == 0 and window_layout.get("main_window")["size"] == [2400, 1300]
+    d = _shown_editor()
+    # (fitted to the laptop's screen: 700 down is more than it has room for)
+    assert d.colors_folded() and d.width() >= 1300 and d.height() == 668
+    d.hide()
+    d.deleteLater()
+
+    # View -> Reset window layout: the file goes, and the main window is back as it first opens
+    window = MainWindow()
+    window.show()
+    assert window.size().toTuple() == (1326, 668)
+    window.reset_layout_action.trigger()
+    # (on screen, never smaller than its least size, which bigger fonts make wider)
+    first = (max(900, window.minimumWidth()), max(560, window.minimumHeight()))
+    assert not (folder / "layout.json").exists() and window.size().toTuple() == first
+    window.close()                      # as it first opens: nothing to keep
+    assert not (folder / "layout.json").exists()
+    d = _shown_editor()
+    assert not d.colors_folded()
+    d.hide()
+    d.deleteLater()
+    # tcviz's own places were never touched
+    assert not editor_edition["tcviz_store"].parent.exists()
+    assert _files_under(editor_edition["tcviz_config"]) == []
+
+
 # --------------------------------------------------------- About and How to use
 
 def test_about_says_who_made_what(qapp, editor_edition):
@@ -512,14 +946,19 @@ def test_about_says_who_made_what(qapp, editor_edition):
               "MODIS and Suomi NPP VIIRS (Haiyan 2013) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from "
               "JAXA G-Portal. Original data for this value added data product was provided by Japan "
               "Aerospace Exploration Agency")
-    assert lines == ["Colortable Editor 1.0.0", "by OneFortyTwoK", "MIT License", "", about.BLURB, "", credit]
+    assert lines == ["Colortable Editor 1.1.0", "by OneFortyTwoK", "MIT License", "", about.BLURB, "", credit]
 
     window = MainWindow()
     shown = window.about_dialog().plain_text()
-    for words in ("Colortable Editor 1.0.0", "by OneFortyTwoK", "MIT License", credit):
+    for words in ("Colortable Editor 1.1.0", "by OneFortyTwoK", "MIT License", credit):
         assert words in shown, words
     how = window.how_to_use_dialog().plain_text()
     assert "Making a table" in how and str(editor_edition["editor"]) in how
+    for file in ("colortables.json", "favorite_palettes.json", "colortables.deleted.json", "colortables.history.json",
+                 "drafts folder", "layout.json"):
+        assert file in how, file
+    assert "If the program closes unexpectedly" in how
+    assert "More room for the picture" in how and "The ? button" in how
     # no color table is credited anywhere (the author's call, 2026-10-03): About says exactly
     # the lines above, and How to use names no table and thanks no one. (The names tcviz
     # credits its tables to are looked for in every file of the public copy by
@@ -530,6 +969,7 @@ def test_about_says_who_made_what(qapp, editor_edition):
             assert words not in text, words
     menus = {menu.title().replace("&", ""): [a.text().replace("&", "") for a in menu.actions() if a.text()]
              for menu in (a.menu() for a in window.menuBar().actions())}
-    assert menus == {"File": ["New table…", "Import…", "Export…", "Quit"],
+    # View, since 2026-10-03: Reset window layout (layout.json)
+    assert menus == {"File": ["New table…", "Import…", "Export…", "Quit"], "View": ["Reset window layout"],
                      "Help": ["How to use", "About Colortable Editor"]}
     window.close()

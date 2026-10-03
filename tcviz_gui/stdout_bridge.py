@@ -115,6 +115,12 @@ class QtStdoutBridge(QObject):
         self._owner = _thread_mark()
         self._passthrough_stream = passthrough_stream
 
+    def claim_current_thread(self):
+        """Make the thread calling this the bridge's own: a job's bridges are made on the
+        GUI thread (worker.Worker.prepare) and claimed by the job's thread when it starts.
+        A plain attribute -- no Qt call, so nothing here waits on Qt's locks."""
+        self._owner = _thread_mark()
+
     def _owns_current_thread(self):
         """This job's own thread, or a worker it spawned (see _track_thread_ancestry).
 

@@ -6,7 +6,9 @@ Everything here goes through tcviz.colortable_library, which keeps the tables fi
 the live registry in step; after each change the rest of the app is told through
 tcviz_gui.library_events, so the palette picker behind this window is already up to date
 when it closes. New and Edit open the visual editor (colortable_editor_dialog.py), which
-tells the app itself when it saves.
+tells the app itself when it saves. A row's right-click menu has the same actions, and
+History…: the table's earlier versions (colortable_history_dialog), one of which opens in
+the editor to be saved again.
 
 Every message is for someone who has never seen the code: what happened, and what to do
 about it.
@@ -23,11 +25,11 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
-    QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton,
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
-from tcviz import colortable_export, colortable_library, edition, user_colortables
+from tcviz import colortable_export, colortable_history, colortable_library, edition, user_colortables
 from tcviz_gui import library_events, swatches
 
 _NAME, _KIND, _RANGE, _STATUS = range(4)
@@ -112,6 +114,8 @@ class ManageColortablesDialog(QDialog):
         header.setSectionResizeMode(_RANGE, QHeaderView.ResizeMode.ResizeToContents)
         self.table_list.itemSelectionChanged.connect(self._update_buttons)
         self.table_list.itemDoubleClicked.connect(lambda *_: self._on_edit())
+        self.table_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table_list.customContextMenuRequested.connect(self._on_list_menu)
         body.addWidget(self.table_list, 1)
 
         buttons = QVBoxLayout()
@@ -338,11 +342,18 @@ class ManageColortablesDialog(QDialog):
         table = self._selected_table()
         if table is None:
             return
-        from tcviz_gui.pages.colortable_editor_dialog import ColortableEditorDialog
         if table.builtin:
             self._edit_copy(table)
             return
+        self._edit_table(table)
+
+    def _edit_table(self, table, version=None):
+        """The editor on one of your tables -- with an earlier `version` of it already
+        loaded, from History… -- and what it saved, in the status line."""
+        from tcviz_gui.pages.colortable_editor_dialog import ColortableEditorDialog
         dialog = ColortableEditorDialog(self, entry=table.entry, mode="edit")
+        if version is not None:
+            dialog.restore_version(version)
         if not (self._run(dialog) and dialog.entry):
             return
         # the editor has told the rest of the app already, a rename as a rename
@@ -350,9 +361,20 @@ class ManageColortablesDialog(QDialog):
         self.refresh(select=name)
         if name != table.name:
             self._say(f"Saved your changes and renamed '{table.name}' to '{name}'."
-                      + self._builtin_back(table))
+                      + self._builtin_back(table) + self._history_note(dialog.history_note))
         else:
-            self._say(f"Saved your changes to '{name}'.")
+            self._say(f"Saved your changes to '{name}'." + self._history_note(dialog.history_note))
+
+    def show_history(self, name=None):
+        """History… for the table `name` (else the selected one): its earlier versions, and
+        "Open in the editor" for the one chosen."""
+        table = self._tables.get(name or self.selected_name())
+        if table is None or table.builtin:
+            return
+        from tcviz_gui.pages.colortable_history_dialog import ColortableHistoryDialog
+        window = ColortableHistoryDialog(self, table.name, action="open")
+        if self._run(window) and window.chosen is not None:
+            self._edit_table(table, window.chosen)
 
     def _edit_copy(self, table):
         """Edit… on a built-in table: the editor on a copy of it, saved as a new table."""
@@ -392,13 +414,15 @@ class ManageColortablesDialog(QDialog):
         new = new.strip()
         if not new or new == table.name:
             return
+        problems = []
         try:
-            colortable_library.rename(table.name, new)
+            colortable_library.rename(table.name, new, history_problems=problems)
         except (ValueError, LookupError, OSError) as e:
             self._warn("Couldn't rename", self._plain(e))
             return
         self.refresh(select=new)
-        self._say(f"Renamed '{table.name}' to '{new}'." + self._builtin_back(table))
+        self._say(f"Renamed '{table.name}' to '{new}'." + self._builtin_back(table)
+                  + self._history_note(" ".join(problems)))
         library_events.notify("renamed", table.name, new)
 
     def _on_hide(self):
@@ -443,17 +467,19 @@ class ManageColortablesDialog(QDialog):
         if not self._deleted or index < 0:
             return
         record = self._deleted[index]
+        problems = []
         try:
-            entry = colortable_library.restore(record.id)
+            entry = colortable_library.restore(record.id, history_problems=problems)
         except (ValueError, LookupError, OSError) as e:
             self._warn("Couldn't bring it back", self._plain(e))
             return
         self.refresh(select=entry["name"])
+        note = self._history_note(" ".join(problems))
         if entry["name"] == record.name:
-            self._say(f"Brought back '{record.name}'.")
+            self._say(f"Brought back '{record.name}'." + note)
         else:
             self._say(f"Brought back '{record.name}' as '{entry['name']}', because you have made another "
-                      f"table called '{record.name}' since.")
+                      f"table called '{record.name}' since." + note)
         library_events.notify("restored", record.name, entry["name"])
 
     def _on_export(self):
@@ -512,7 +538,53 @@ class ManageColortablesDialog(QDialog):
             message += (f" {len(failures)} could not be written out exactly and were left out: {left}.")
         self._say(message)
 
+    # ------------------------------------------------------------------ the right-click menu
+
+    def row_menu(self, name):
+        """(menu, {action: what it does}) for a right-click on the row of `name`, which is
+        chosen first: Edit…, History… (the table's earlier versions; only one of yours that
+        has been saved over has any), Duplicate, Rename…, Hide or Show (tcviz), Delete --
+        each as its button would be now."""
+        self.select(name)
+        table = self._selected_table()
+        menu = QMenu(self)
+        menu.setToolTipsVisible(True)
+        actions = {}
+
+        def add(text, slot, enabled, tip=""):
+            action = menu.addAction(text)
+            action.setEnabled(bool(enabled))
+            action.setToolTip(tip)
+            actions[action] = slot
+            return action
+        add("Edit…", self._on_edit, self.edit_btn.isEnabled(), self.edit_btn.toolTip())
+        has = table is not None and not table.builtin and colortable_history.has_versions(table.name)
+        add("History…", lambda: self.show_history(name), has,
+            "See the earlier versions of this table, kept each time you saved over it, and open one in the editor."
+            if has else "No saved versions yet. Each time you save over one of your tables, the version it replaces "
+            "is kept.")
+        menu.addSeparator()
+        add("Duplicate", self._on_duplicate, self.duplicate_btn.isEnabled())
+        add("Rename…", self._on_rename, self.rename_btn.isEnabled())
+        if edition.has_pickers():
+            add(self.hide_btn.text(), self._on_hide, self.hide_btn.isEnabled())
+        add("Delete", self._on_delete, self.delete_btn.isEnabled())
+        return menu, actions
+
+    def _on_list_menu(self, point):
+        item = self.table_list.itemAt(point)
+        if item is None:
+            return
+        menu, actions = self.row_menu(item.data(_NAME, Qt.ItemDataRole.UserRole))
+        chosen = menu.exec(self.table_list.viewport().mapToGlobal(point))
+        if chosen in actions and chosen.isEnabled():
+            actions[chosen]()
+
     # ------------------------------------------------------------------ helpers
+
+    @staticmethod
+    def _history_note(note):
+        return f" {note}" if note else ""
 
     def _builtin_back(self, table):
         if not table.shadows_builtin:

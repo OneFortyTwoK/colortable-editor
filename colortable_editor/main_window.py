@@ -1,6 +1,12 @@
 """Colortable Editor's main window: the Manage colortables view as its content -- the list of
 tables with New, Edit, Duplicate, Rename, Delete (and Restore), Import and Export -- under a
-menu bar (File, Help), and the About and How to use windows."""
+menu bar (File, View, Help), the About and How to use windows, and at start the offer of any
+table an editor left unsaved when the program last closed (offer_draft_recovery).
+
+It opens the size it was left (tcviz.window_layout, "main_window" in layout.json, kept as it
+closes), and View -> Reset window layout forgets that and the editor's layout both."""
+import contextlib
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
@@ -9,8 +15,15 @@ from PySide6.QtWidgets import (
 
 from colortable_editor import APP_NAME, AUTHOR, LICENSE, SAMPLES_CREDIT, __version__, about
 from colortable_editor.icon import pixmap
-from tcviz import colortable_registry, user_colortables
+from tcviz import colortable_registry, user_colortables, window_layout
+from tcviz_gui import colortable_widgets
+from tcviz_gui.pages import draft_recovery_dialog
 from tcviz_gui.pages.manage_colortables_dialog import ManageColortablesDialog
+
+# The main window's record in layout.json, and the size it first opens at (no bigger than
+# the screen).
+_LAYOUT_KEY = "main_window"
+_DEFAULT_SIZE = (900, 560)
 
 
 class ManagePanel(ManageColortablesDialog):
@@ -33,7 +46,7 @@ class MainWindow(QMainWindow):
         self.panel = ManagePanel(self)
         self.setCentralWidget(self.panel)
         self._build_menus()
-        self.resize(900, 560)
+        self._restore_layout()
 
     def _build_menus(self):
         file_menu = self.menuBar().addMenu("&File")
@@ -46,6 +59,10 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         self.quit_action = self._action(file_menu, "&Quit", self.close, QKeySequence.StandardKey.Quit,
                                         f"Close {APP_NAME}.")
+        view_menu = self.menuBar().addMenu("&View")
+        self.reset_layout_action = self._action(
+            view_menu, "Reset window &layout", self.reset_layout, None,
+            "Put the windows back to the size they first open at, with the editor's color panel shown.")
         help_menu = self.menuBar().addMenu("&Help")
         self.how_to_action = self._action(help_menu, "&How to use", self.show_how_to_use,
                                           QKeySequence.StandardKey.HelpContents, "A short guide to the editor.")
@@ -61,6 +78,58 @@ class MainWindow(QMainWindow):
         menu.addAction(action)
         return action
 
+    # ------------------------------------------------------------------ the window's layout
+
+    def _restore_layout(self):
+        """Open the size the window was left (window_layout), made to fit this screen, and
+        maximized if it was; with nothing saved, the size it first opens at."""
+        kept = window_layout.get(_LAYOUT_KEY)
+        room = colortable_widgets.screen_room(self)
+        self.resize(*(window_layout.fit_size(kept.get("size"), room) or window_layout.fit_size(_DEFAULT_SIZE, room)))
+        # the layout as the window is shown (showEvent): closing keeps it only if it changed
+        self._layout_base = None
+        if kept.get("maximized") is True:
+            self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
+
+    def reset_layout(self):
+        """View -> Reset window layout: forget every window's layout -- layout.json goes, the
+        editor's too -- and put this window back to the size it first opens at."""
+        window_layout.reset()
+        self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMaximized)
+        self.resize(*window_layout.fit_size(_DEFAULT_SIZE, colortable_widgets.screen_room(self)))
+        if self._layout_base is not None:
+            # back as it first opens is nothing to keep
+            self._layout_base = self._layout_record()
+
+    def _layout_record(self):
+        """The window's layout as window_layout keeps it: its size (when maximized, the size
+        it goes back to) and whether it is maximized."""
+        maximized = self.isMaximized()
+        size = self.normalGeometry().size() if maximized else self.size()
+        if size.isEmpty():
+            size = self.size()
+        return {"size": [size.width(), size.height()], "maximized": maximized}
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._layout_base is None:
+            self._layout_base = self._layout_record()
+
+    def closeEvent(self, event):
+        # kept for next time only if it changed while open: a window never shown (the smoke
+        # run) chose no layout, and keeps none; and a layout that can't be kept never keeps
+        # the program from closing
+        with contextlib.suppress(Exception):
+            self._remember_layout()
+        super().closeEvent(event)
+
+    def _remember_layout(self):
+        if self._layout_base is not None:
+            now = self._layout_record()
+            if now != self._layout_base:
+                window_layout.update(_LAYOUT_KEY, now)
+            self._layout_base = now
+
     # ------------------------------------------------------------------ Help
 
     def about_dialog(self):
@@ -75,7 +144,8 @@ class MainWindow(QMainWindow):
         """The How to use window: about.HOW_TO_USE, and where the tables are kept."""
         parts = [f"<p><b>{_escaped(heading)}</b><br>{_escaped(text)}</p>" for heading, text in about.HOW_TO_USE]
         parts.append(f"<p><b>Where your tables are kept</b><br>"
-                     f"{_escaped(str(user_colortables.store_path().parent))}</p>")
+                     f"{_escaped(str(user_colortables.store_path().parent))}<br>"
+                     f"{_escaped(about.kept_files_text())}</p>")
         return TextWindow(self, "How to use", "".join(parts), heading=f"How to use {APP_NAME}", size=(660, 640))
 
     def show_about(self):
@@ -94,6 +164,19 @@ class MainWindow(QMainWindow):
         problems = self.startup_problems()
         if problems:
             QMessageBox.warning(self, "Some color tables could not be loaded", "\n\n".join(problems))
+
+    def offer_draft_recovery(self):
+        """The tables an editor left unsaved when the program last closed, offered back in one
+        window (tcviz_gui.pages.draft_recovery_dialog); nothing when there are none. A table
+        saved from there is chosen in the list. The window shown, or None."""
+        return draft_recovery_dialog.offer(self, on_saved=self._on_draft_saved)
+
+    def _on_draft_saved(self, name):
+        self.panel.refresh(select=name)
+        self.panel._say(f"Saved '{name}'.")
+
+    def _run(self, dialog):
+        return dialog.exec()
 
 
 class TextWindow(QDialog):

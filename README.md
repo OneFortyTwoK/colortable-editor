@@ -55,13 +55,21 @@ If it won't start, open a terminal in its folder and run
 
 **Making a table.** Press New… for a table of your own, or choose a built-in table and press Duplicate (or Edit…, which opens a copy of it in the editor). Infrared tables are for pictures of cloud-top temperature; water-vapor tables are for water-vapor pictures.
 
-**In the editor.** The bar on the left is the table, warm at the top and cold at the bottom. Click the bar to add a stop, and drag a stop to move it. Choose a stop's color in the color panel. Right-click a stop to make a hard step or to delete it. Undo and Redo take back or redo any change.
+**In the editor.** The bar on the left is the table, warm at the top and cold at the bottom. Click the bar to add a stop, and drag a stop to move it. Choose a stop's color in the color panel. Right-click a stop to make a hard step or to delete it. Undo and Redo take back or redo any change. The ? button at the top right of the editor shows these tips while you work.
 
-**The picture.** The picture is a real storm drawn with your table as you work. Choose another one in the Picture box. Point at the picture to read its temperature; click it to choose the stop that colors that spot. Compare with shows another table beside yours. Copy picture and Save picture… keep the whole picture in your table.
+**The picture.** The picture is a real storm drawn with your table as you work. Choose another one in the Picture box. Point at the picture to read its temperature; click it to choose the stop that colors that spot. Compare with shows another table beside yours. Tick Swipe to put both on one picture instead, yours left of a line and the other right of it, and drag the line across to see where they differ. Copy picture and Save picture… keep the whole picture in your table (or, with Swipe ticked, split where the line is).
 
-**Saving and sharing.** Save keeps the table. Export… writes the chosen table to a file, and Copy for sharing puts it on the clipboard, ready to paste into a message. Import… brings in tables a friend sent you, as files or as pasted text.
+**Several storms at once.** Other storms… opens a window beside the editor with your table on several storms at once. Tick the storms you want in its list: at first, the first six of your table's kind are ticked, and what you tick is kept for next time. The storms of the other kind (water vapor, for an infrared table) are listed after them. The pictures change as you edit; click one to open it in the editor. Copy grid and Save grid… keep the storms ticked as one picture with the table's color scale, and Share card… makes a card of them to post.
 
-**Taking something back.** Deleted a table by mistake? Choose it under Recently deleted and press Restore.
+**More room for the picture.** Drag the divider between the color panel and the picture to the left to fold the color panel away; drag it back, or double-click it, to bring the panel back. The windows open the size you leave them. View → Reset window layout (or Reset layout under the editor's ? button) puts them back as they first opened.
+
+**Saving and sharing.** Save keeps the table. Export… writes the chosen table to a file, and Copy for sharing puts it on the clipboard, ready to paste into a message. Import… brings in tables a friend sent you, as files or as pasted text. In the editor, Share card… makes one picture to post: the table's name, its color scale and the storm drawn with it, with the storm's title and data line under it. Change the title if you like, then copy the card or save it as a PNG file. While you compare two tables, the card shows both, side by side or swiped as they are on screen.
+
+**Earlier versions.** Each time you save over one of your tables, the version it replaces is kept, the last 20 of them. In the editor, press History… (or right-click a table in the list and choose History…) to see them, newest first, with their colors and range. Choose one and press Restore this version (Open in the editor, from the list) to put it back in the editor; press Save to keep it, or Undo to take it back out.
+
+**Taking something back.** Deleted a table by mistake? Choose it under Recently deleted and press Restore. Its earlier versions come back with it.
+
+**If the program closes unexpectedly.** While a table in the editor has changes you haven't saved, a copy of them is kept a moment after each change. If the program closes before you save (it crashes, or the computer loses power), it offers those tables back the next time it starts: Open puts one back in the editor with your changes, ready to save; Discard throws the changes away; Decide later asks again next time.
 
 **Help → How to use** in the program says the same.
 
@@ -72,8 +80,7 @@ If it won't start, open a terminal in its folder and run
 | Windows | `%APPDATA%\Colortable Editor` (for example `C:\Users\you\AppData\Roaming\Colortable Editor`) |
 | Linux | `~/.config/Colortable Editor` |
 
-Your tables are in `colortables.json` in that folder, your starred tables in
-`favorite_palettes.json` and the recently deleted ones in `colortables.deleted.json`.
+Your tables are in `colortables.json` in that folder, your starred tables in `favorite_palettes.json`, the recently deleted ones in `colortables.deleted.json`, the earlier versions of your tables (History) in `colortables.history.json`, and how you left the windows (their size, whether the color panel is folded away, and the storms ticked under Other storms) in `layout.json`. Changes not yet saved wait in the `drafts` folder there while a table is open in the editor, and until you save or discard them if the program closed unexpectedly.
 **Help → How to use** shows the exact folder. Nothing is saved anywhere else.
 
 To keep your tables somewhere else (on a USB stick, say), set the environment variable

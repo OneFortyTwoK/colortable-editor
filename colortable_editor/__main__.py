@@ -119,6 +119,9 @@ def main(argv=None):
         return 0
     window.show()
     window.say_startup_problems()
+    # a table left unsaved when the program last closed (never in a smoke run, which
+    # returned above: a build check must not wait on a window)
+    window.offer_draft_recovery()
     code = app.exec()
     # a job still running (a picture being read) must not reach Python's own teardown,
     # which aborts on a running QThread

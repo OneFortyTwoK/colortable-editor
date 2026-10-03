@@ -111,6 +111,25 @@ class Worker(QObject):
         self._args = args
         self._kwargs = kwargs
         self.canceled = False
+        self._bridges = None
+
+    def prepare(self):
+        """Make the job's output bridges and connect them -- on the GUI thread, before the
+        job's thread starts (run_in_background calls it).
+
+        Connecting (and later destroying) a QObject takes one of Qt's shared signal-slot
+        locks. Done on the job's thread, which holds Python's GIL while it waits for that
+        lock, it could deadlock against the GUI thread taking the same lock to destroy a
+        finished job's objects and then waiting for the GIL to release their Python side:
+        a test worker hung for good at `bridge.line_written.connect` while the GUI thread
+        sat in processEvents (2026-10-03, and once before, intermittently -- which lock an
+        object takes depends on its address)."""
+        if self._bridges is None:
+            self._bridges = []
+            for name in ("stdout", "stderr"):
+                bridge = QtStdoutBridge(_router(name).real)
+                bridge.line_written.connect(self.progress_line, Qt.ConnectionType.DirectConnection)
+                self._bridges.append((name, bridge))
 
     def cancel(self):
         """Ask the job to stop: it ends at its next line of output (JobCanceled) and
@@ -118,11 +137,10 @@ class Worker(QObject):
         self.canceled = True
 
     def run(self):
-        bridges = []
-        for name in ("stdout", "stderr"):
-            bridge = QtStdoutBridge(_router(name).real)
-            bridge.line_written.connect(self.progress_line, Qt.ConnectionType.DirectConnection)
-            bridges.append((name, bridge))
+        self.prepare()          # already done on the GUI thread when run_in_background started it
+        bridges = self._bridges
+        for _name, bridge in bridges:
+            bridge.claim_current_thread()
         with _jobs_lock:
             _jobs.extend((name, bridge, self) for name, bridge in bridges)
         try:
@@ -159,6 +177,28 @@ class Worker(QObject):
 _active_jobs = set()
 
 
+class _Cleanup(QObject):
+    """Takes a finished job apart on the GUI thread. QThread.finished is emitted from the
+    job's own thread, and a plain function connected to it runs right there, where
+    dropping the last references destroys the job's QObjects while that thread holds the
+    GIL -- the same lock-order deadlock Worker.prepare avoids. A QObject's slot made on
+    the GUI thread is queued to it instead."""
+
+    def __init__(self, pair):
+        super().__init__()
+        self._pair = pair
+
+    def run(self):
+        thread, worker = self._pair
+        worker.deleteLater()
+        thread.deleteLater()
+        _active_jobs.discard(self._pair)
+        _cleanups.discard(self)
+
+
+_cleanups = set()
+
+
 def run_in_background(fn, *args, on_progress=None, on_finished=None, on_failed=None, **kwargs):
     """Starts fn(*args, **kwargs) on a new QThread. Returns (thread, worker); the
     worker's cancel() stops the job (see Worker.cancel) -- object lifetime itself is
@@ -180,6 +220,7 @@ def run_in_background(fn, *args, on_progress=None, on_finished=None, on_failed=N
     """
     thread = QThread()
     worker = Worker(fn, *args, **kwargs)
+    worker.prepare()                    # on this, the GUI thread: see Worker.prepare
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
     if on_progress is not None:
@@ -196,13 +237,9 @@ def run_in_background(fn, *args, on_progress=None, on_finished=None, on_failed=N
 
     pair = (thread, worker)
     _active_jobs.add(pair)
-
-    def _cleanup():
-        worker.deleteLater()
-        thread.deleteLater()
-        _active_jobs.discard(pair)
-
-    thread.finished.connect(_cleanup)
+    cleanup = _Cleanup(pair)
+    _cleanups.add(cleanup)
+    thread.finished.connect(cleanup.run)
     thread.start()
     return thread, worker
 

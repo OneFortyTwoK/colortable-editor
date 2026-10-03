@@ -29,7 +29,8 @@ sample (3,859 x 3,859, about 14.9 M pixels) is shown 1 pixel in 4 across and dow
 zoomed in -- and buys a zoom that never reads the file again: a saved picture can be moved
 or deleted while the editor is open (reading it took 0.1 s for a 4898 x 4898 MODIS picture,
 2026-10-02, so the wait was not the reason). full_picture draws the whole saved picture for
-the editor's Copy picture and Save picture.
+the editor's Copy picture and Save picture, and swiped_picture its swipe: one table left of
+a column of the picture, another right of it.
 
 The editor's picture pane takes the row image and the colors separately (set_index_image /
 set_lut), so the lookup could move to the graphics card later without changing this. The
@@ -267,6 +268,13 @@ class PreviewSource:
                 self._rows.popitem(last=False)
         return index
 
+    def forget_rows(self):
+        """Let go of the row images worked out so far (`rows` works them out again when next
+        asked): for a picture put aside, such as a storm unticked in the storm grid, whose
+        values are kept to be shown again but whose rows -- eight bytes a pixel each -- are not."""
+        self._rows.clear()
+        self._windows.clear()
+
     def window_rows(self, norm, n, top, bottom, left, right):
         """The rows, as `rows`, of the saved picture's own pixels [top:bottom, left:right]
         -- every one of them, whatever the thinning -- for the editor's zoom. Worked out
@@ -347,6 +355,66 @@ def side_by_side(first, second, plate=(18, 18, 18)):
     out = Image.new("RGB", (first.width + gap + second.width, max(first.height, second.height)), plate)
     out.paste(first, (0, 0))
     out.paste(second, (first.width + gap, 0))
+    return out
+
+
+PictureTable = collections.namedtuple("PictureTable", "cmap norm vmax vmin name")
+PictureTable.__doc__ = """One table as full_picture draws a picture with it: its colormap, its norm,
+the range the picture is drawn at (vmax, vmin, in the engine's units; PreviewSource.drawing_range)
+and the name the picture carries with its color scale (None for none)."""
+
+
+def swiped_picture(source, left, right, fraction, units, scale=True):
+    """The editor's swipe as one picture, for its Copy picture and Save picture: the whole
+    saved picture, its columns left of `fraction` of its width drawn in the table `left`
+    and the rest in `right` (PictureTable each) -- every pixel full_picture's for its own
+    table, enlarged as full_picture enlarges it, with no line drawn between them, so not
+    one pixel is changed. (PIL RGB image, the whole number each pixel was enlarged by).
+
+    With `scale`, each table's color scale and name on its own side: the right table's
+    scale at the bottom-right, where full_picture puts it, and its name at the top-right;
+    the left table's scale mirrored to the bottom-left, and its name at the top-left, where
+    full_picture puts a name. A side with no columns carries neither."""
+    from . import picture_overlays
+    width = source.full_shape[1]
+    split = min(width, max(0, round(float(fraction) * width)))
+    tables = ((left, 0 < split), (right, split < width))
+    drawn = [full_picture(source, t.cmap, t.norm, t.vmax, t.vmin, units, scale=False) if shown else None
+             for t, shown in tables]
+    out, factor = drawn[1] or drawn[0]
+    if drawn[0] is not None and drawn[1] is not None:
+        out.paste(drawn[0][0].crop((0, 0, split * factor, out.height)), (0, 0))
+    if not scale:
+        return out, factor
+    if split < width:
+        out = picture_overlays.overlay_colorbar(out, right.cmap.with_extremes(bad="black"), right.vmin, right.vmax,
+                                                units=units)
+        if right.name:
+            out = picture_overlays.overlay_caption(out, right.name, corner="tr")
+    if split > 0:
+        out = _colorbar_at_left(out, left.cmap.with_extremes(bad="black"), left.vmin, left.vmax, units)
+        if left.name:
+            out = picture_overlays.overlay_caption(out, left.name, corner="tl")
+    return out, factor
+
+
+def _colorbar_at_left(img, cmap, vmin, vmax, units):
+    """picture_overlays.overlay_colorbar's scale in the picture's bottom-left corner: the
+    very panel it draws at the bottom-right (sized by the picture's height alone), laid
+    over a strip of the picture just wide enough for it to stand as far in from the left
+    edge as it stands from the right one."""
+    from PIL import Image, ImageChops
+
+    from . import picture_overlays
+    # where the panel lands on a plate as tall as the picture: its width and its margin
+    plate = Image.new("RGB", (min(img.width, img.height), img.height), (40, 40, 40))
+    panel_left, _top, panel_right, _bottom = ImageChops.difference(
+        picture_overlays.overlay_colorbar(plate, cmap, vmin, vmax, units=units), plate).getbbox()
+    strip_width = min(img.width, (panel_right - panel_left) + 2 * (plate.width - panel_right))
+    strip = picture_overlays.overlay_colorbar(img.crop((0, 0, strip_width, img.height)), cmap, vmin, vmax,
+                                              units=units)
+    out = img.copy()
+    out.paste(strip, (0, 0))
     return out
 
 

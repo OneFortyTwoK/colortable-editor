@@ -11,7 +11,8 @@ degrees C), winds (in knots) or radar (in dBZ): the Kind box switches it, and th
 the stops, the color scale and the sample picture follow in that kind's units. The Manage window's New and Edit, the
 picker's "+ Add colortable..." and its right-click Edit and "Duplicate and edit..." all
 open it. The older text-box dialog is still here as "Type or paste stops..." for pasting a
-block someone shared.
+block someone shared, and "History..." shows the earlier versions of a table of yours
+(colortable_history_dialog), one of which loads back in as one undo step, unsaved.
 
 Every change to the table -- a stop added, moved, recolored, split into a hard step or
 deleted, the range, the kind -- is one step of a QUndoStack, a whole drag being one step.
@@ -34,8 +35,39 @@ drawn from every one of its pixels. The picture compared with zooms and pans wit
 Copy picture and Save picture hand over the whole saved picture in the edited table, every
 pixel, colored as tcviz colors it, with the color scale in it if the box says so.
 
+Swipe puts the two tables on one picture instead of two: this table left of a line, the
+one compared with right of it (PicturePane.set_swipe), each side exactly its table's
+colors. The line is dragged across the picture, or moved with the arrow keys once pressed;
+the picture still zooms and pans under it, the pointer reads out either side, and a click
+chooses a stop only on this table's side. Copy picture and Save picture then hand over the
+swiped picture, split where the line is (colortable_preview.swiped_picture), unless "Both,
+side by side" is ticked.
+
+Share card… makes one picture to post of what is shown -- the title, each table's color
+scale and the storm drawn with it, the storm's title and data line under it
+(tcviz.share_card) -- in a window of its own (share_card_dialog).
+
+Other storms… opens the storm grid (storm_grid_dialog), a window beside the editor
+that shows the table on several bundled samples at once, the ones ticked in its list. It
+follows every edit: each flush tells it (`drawn`), and it draws its small pictures again a
+moment later. A click on one of them shows that sample here (show_sample).
+
 The picture is redrawn through tcviz.colortable_preview: the table row of every pixel is
 worked out once per picture and range, so an edit only looks the colors up again.
+
+How to use the window waits behind the "?" at the top right (_help, in a pop-up that stays
+until clicked away), so the picture has the room the help took. The color panel sits beside
+the picture in a splitter (colortable_widgets.PanelSplitter): dragging its handle left folds
+the panel away and the picture takes its width; the panel itself keeps its width. The
+window opens as it was last left -- its size, maximized or not, the panel folded or not --
+from layout.json beside the tables (tcviz.window_layout; the one setting kept, for the
+editor only, by the author's choice), fitted to the screen; Reset layout in the "?" forgets
+it.
+
+While the table differs from what was saved, the editor keeps it in a draft file a moment
+after each change (tcviz.colortable_drafts), removed again on Save or a confirmed Cancel: a
+table left unsaved when the program closes unexpectedly is offered back at the next start
+(tcviz_gui.pages.draft_recovery_dialog), and opens here marked changed (`draft`).
 
 The Picture box lists the bundled samples of vendor/editor_samples first, in the
 manifest's order, and the editor opens on the first one of the table's kind; then tcviz's
@@ -55,17 +87,19 @@ from PySide6.QtCore import QStandardPaths, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QImage, QKeySequence, QShortcut, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (
     QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
-    QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSizePolicy, QSpacerItem,
+    QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSizePolicy, QSpacerItem, QToolButton,
     QVBoxLayout, QWidget,
 )
 
 from tcviz import (
-    colortable_export, colortable_library, colortable_preview, colortable_registry, edition, user_colortables,
+    colortable_drafts, colortable_export, colortable_history, colortable_library, colortable_preview,
+    colortable_registry, edition, user_colortables, window_layout,
 )
 from tcviz.colortable_model import ColortableModel, EditRefused, kind_of_entry
-from tcviz_gui import library_events
+from tcviz_gui import colortable_widgets, library_events
 from tcviz_gui.colortable_widgets import (
-    ZOOM_STEP, ColorPanel, PicturePane, PictureView, ScalePanel, StopBar, StopListPanel, degrees_text, zoom_words,
+    ZOOM_STEP, ColorPanel, HelpPopup, PanelSplitter, PicturePane, PictureView, ScalePanel, StopBar, StopListPanel,
+    degrees_text, zoom_words,
 )
 
 _TITLES = {"add": "Add colortable", "edit": "Edit colortable", "copy": "Duplicate colortable"}
@@ -93,12 +127,21 @@ _SAMPLE_NAMES = {"ir": "Sample infrared picture (GOES-19, Genevieve)",
 
 
 def _help(model):
+    """How to use the window, in the table's units: what its "?" button shows, a short
+    paragraph for each part of it."""
     unit = model.unit_label
-    return (f"Click the bar to add a stop; drag a stop to move it (hold Shift for {_WHOLE[model.units]}). "
-            "Change the chosen stop's color in the color panel; right-click a stop for a hard step or to "
-            f"delete it. The arrow keys move the chosen stop 1 {unit} (with Shift, 0.1 {unit}); Delete removes "
-            "it. Click the picture to choose the stop that colors that spot; Shift-click adds a stop there. "
-            "Scroll on the picture to zoom; drag it to move around.")
+    return "\n\n".join((
+        f"Click the bar to add a stop; drag a stop to move it (hold Shift for {_WHOLE[model.units]}). "
+        "Right-click a stop for a hard step or to delete it.",
+        f"Change the chosen stop's color in the color panel. The arrow keys move the chosen stop 1 {unit} "
+        f"(with Shift, 0.1 {unit}); Delete removes it.",
+        "Click the picture to choose the stop that colors that spot; Shift-click adds a stop there. Scroll on "
+        "the picture to zoom; drag it to move around.",
+        "Drag the divider between the color panel and the picture to the left to fold the color panel away "
+        "and give the picture more room. Drag it back, or double-click it, to bring the panel back.",
+        "Other storms… shows the table on several storms at once, as you edit. Tick the storms you want there; "
+        "click one to open it here.",
+    ))
 # what _edit returns for a change the table would not take
 _REFUSED = object()
 PictureSpot = namedtuple("PictureSpot", "value in_table")
@@ -112,6 +155,31 @@ _WV_LOCK = ("Water-vapor pictures are always drawn from 0 to -90 °C, so a water
 # button, so the picture, which a default-sized window limits by its height, keeps its size.
 _CONTROLS_WIDTH = 150
 _PNG_FILTER = "PNG picture (*.png)"
+# How long after the last change the draft is written: long enough that a drag or a burst of
+# typing is one write, short enough that little is lost if the program closes unexpectedly.
+DRAFT_DELAY_MS = 2000
+_HISTORY_TIPS = {
+    True: "See the earlier versions of this table, kept each time you saved over it, and load one back in.",
+    False: "This table has no saved versions yet. Each time you save over one of your tables, the version it "
+           "replaces is kept here.",
+}
+# The window's layout, remembered between runs (tcviz.window_layout): its record's key, the
+# size it first opens at (no bigger than the screen), and what the "?" says about it.
+_LAYOUT_KEY = "editor"
+_DEFAULT_SIZE = (1600, 860)
+_LAYOUT_NOTE = "This window opens the size you leave it, with the color panel shown or folded away as you left it."
+_DIVIDER_TIP = ("Drag left to fold the color panel away and give the picture more room; drag it back, or "
+                "double-click, to bring the panel back.")
+# The storm grid's button, and what it says when there are storms of the table's kind to try
+# it on (the bundled samples) and when there are none -- a winds or radar table in tcviz. Two
+# words, not "Try on other storms…": under two pictures compared, the zoom row it ends would
+# then be wider than the picture list's row, and comparing would need a wider window (and
+# beside one picture, bigger fonts would cut it short in the 150-pixel column).
+_GRID_WORDS = "Other storms…"
+_GRID_TIPS = {
+    True: "Try this table on several other storms at once, as you edit. Pick the storms in the window that opens.",
+    False: "There are no other storm pictures to try this kind of table on.",
+}
 
 
 class _Step(QUndoCommand):
@@ -146,21 +214,63 @@ class _Step(QUndoCommand):
         return True
 
 
+class _VersionStep(_Step):
+    """An earlier version loaded back in: the table and its description, undone and redone
+    together (the description box is not part of the table's own state)."""
+
+    def __init__(self, dialog, text, before, after, descriptions):
+        super().__init__(dialog, text, before, after, None)
+        self.descriptions = descriptions        # (before, after)
+
+    def redo(self):
+        first = self._done
+        super().redo()
+        if not first:
+            self._dialog._set_description(self.descriptions[1])
+
+    def undo(self):
+        super().undo()
+        self._dialog._set_description(self.descriptions[0])
+
+
 class ColortableEditorDialog(QDialog):
     saved = Signal(dict)            # the stored entry, just before the app is told
+    drawn = Signal()                # the table, the picture or the range was just drawn again (flush)
 
-    def __init__(self, parent=None, entry=None, mode="add", source=None, kind="ir"):
+    def __init__(self, parent=None, entry=None, mode="add", source=None, kind="ir", draft=None):
         """`entry` is the table to start from (a stored table, or a duplicate_draft);
         `mode` "add", "edit" or "copy" (see the module); `source` the name a copy was made
         from, for the message the rest of the app gets; `kind` what a new table is ("ir",
-        "wv", "wind" or "radar") when there is no `entry`."""
+        "wv", "wind" or "radar") when there is no `entry`. `draft` is a
+        colortable_drafts.Draft left unsaved when the program last closed, whose `entry`
+        this is: the editor carries on with it, marked changed."""
         super().__init__(parent)
         if mode not in _TITLES:
             raise ValueError(f"mode must be one of {sorted(_TITLES)}")
         self._mode = mode
         self._source = source
         self._original = entry["name"] if mode == "edit" and entry else None
+        if draft is not None and mode == "edit":
+            # the saved table the draft changes, not whatever the name box said by then
+            self._original = draft.original
+        # the draft this editor keeps its unsaved table in (a recovered one keeps its own
+        # file), and the saved table's fingerprint when it opened, to tell later whether
+        # that table was saved again meanwhile
+        self._draft_id = draft.id if draft is not None else colortable_drafts.new_id()
+        if draft is not None:
+            self._draft_base = draft.base
+        else:
+            self._draft_base = colortable_drafts.fingerprint(entry) if self._original is not None else None
+        self._draft_written = None          # what the draft file holds now, None for no file
+        self._draft_failed = False          # a write failed: said once
+        self._marked_changed = False        # a recovered draft is unsaved from the start
+        self._autosaving = False            # set at the end of __init__: building the window is no edit
+        self._draft_timer = QTimer(self)
+        self._draft_timer.setSingleShot(True)
+        self._draft_timer.setInterval(DRAFT_DELAY_MS)
+        self._draft_timer.timeout.connect(self._autosave)
         self.entry = None           # the stored entry, once saved
+        self.history_note = ""      # once saved: what could not be kept in History, if anything
         unreadable = False
         if entry:
             try:
@@ -193,6 +303,7 @@ class ColortableEditorDialog(QDialog):
         self._pending_choice = None
         self._compared = (None, None)       # (what it was drawn for, (rows, colors))
         self._shown_kind = self.model.kind
+        self._storm_grid = None             # the Other storms… window, once opened
         # a burst of drag events is drawn once: each schedules this, which runs when the
         # window next has nothing else to do
         self._refresh_timer = QTimer(self)
@@ -211,6 +322,14 @@ class ColortableEditorDialog(QDialog):
         if unreadable:
             self._say("This table's colors could not be read, so the editor starts again from a plain "
                       "black-to-white table. Save replaces the damaged one.")
+        if draft is not None:
+            self.mark_changed()
+            # already on disk as it is: written again only once it changes
+            self._draft_written = self._draft_content()
+            if not unreadable:
+                self._say(f"These are your unsaved changes from {colortable_drafts.when_words(draft.when)}. Save "
+                          "keeps them; Cancel lets them go.")
+        self._autosaving = True
 
     # ================================================================== layout
 
@@ -243,6 +362,18 @@ class ColortableEditorDialog(QDialog):
         name_row.addWidget(self.hidden_check)
         # Colortable Editor has no palette lists to hide a table from
         self.hidden_check.setVisible(edition.has_pickers())
+        # how to use the window, in a pop-up that stays until clicked away: the help was two
+        # dense lines over the bar, which took the picture's room
+        name_row.addSpacing(12)
+        self.help_btn = QToolButton()
+        self.help_btn.setText("?")
+        self.help_btn.setToolTip("How to use this window")
+        self.help_btn.setFixedWidth(max(26, self.help_btn.sizeHint().height()))
+        self.help_btn.clicked.connect(self.show_help)
+        name_row.addWidget(self.help_btn)
+        self.help_popup = HelpPopup(self, _help(self.model), note=_LAYOUT_NOTE,
+                                    action=("Reset layout", "Put this window back to the size it first opens at, "
+                                            "with the color panel shown.", self.reset_layout))
         form.addRow("Name:", _wrap(name_row))
         self.desc_edit = QLineEdit()
         self.desc_edit.setPlaceholderText("short description (shown in tooltips and lists)")
@@ -265,10 +396,6 @@ class ColortableEditorDialog(QDialog):
         top.addLayout(form, 1)
         layout.addLayout(top)
 
-        self.help_label = QLabel(_help(self.model))
-        self.help_label.setWordWrap(True)
-        layout.addWidget(self.help_label)
-
         body = QHBoxLayout()
         self.stop_bar = StopBar(self)
         body.addWidget(self.stop_bar)
@@ -277,11 +404,11 @@ class ColortableEditorDialog(QDialog):
         self.stop_list = StopListPanel(self)
         body.addWidget(self.stop_list)
         # between the list and the picture: the chosen row on one side, what its color does
-        # on the other
+        # on the other -- and beside the picture in a splitter, so it can be folded away to
+        # give the picture its room
         self.color_panel = ColorPanel(self)
-        body.addWidget(self.color_panel)
 
-        preview_box = QGroupBox("On a real picture")
+        self.preview_box = preview_box = QGroupBox("On a real picture")
         preview_layout = QVBoxLayout(preview_box)
         choose_row = QHBoxLayout()
         choose_row.addWidget(QLabel("Picture:"))
@@ -297,7 +424,17 @@ class ColortableEditorDialog(QDialog):
         self.compare_combo.setMinimumContentsLength(12)
         self.compare_combo.setToolTip("Show another table, built-in or yours, beside this one on the same picture.")
         choose_row.addWidget(self.compare_combo)
+        self.swipe_check = QCheckBox("Swipe")
+        self.swipe_check.setToolTip("Show both tables on one picture and drag the line to see where they differ.")
+        # offered while there is a table to compare with (_redraw)
+        self.swipe_check.setVisible(False)
+        choose_row.addWidget(self.swipe_check)
         preview_layout.addLayout(choose_row)
+        # the Swipe box takes its room from the picture list's least width, so comparing needs
+        # no wider a window than before it came (the window is about as wide as a laptop's
+        # screen): (that least width, the room the box takes)
+        self._picture_room = (self.picture_combo.minimumSizeHint().width(),
+                              self.swipe_check.sizeHint().width() + max(0, choose_row.spacing()))
         panes = QHBoxLayout()
         # only this table's picture answers the mouse: the one compared with is another table
         # (no tooltip: it would sit over the picture while the status line reads it out);
@@ -307,10 +444,19 @@ class ColortableEditorDialog(QDialog):
         self.compare_pane = PicturePane(view=self.picture_view)
         self.picture_caption = QLabel("This table")
         self.compare_caption = QLabel("")
+        # swiping, one picture shows both: this table's name over its left and the other's
+        # over its right
+        self.swipe_caption = QLabel("")
+        self.swipe_caption.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.swipe_caption.setVisible(False)
         for pane, caption in ((self.picture_pane, self.picture_caption), (self.compare_pane, self.compare_caption)):
             column = QVBoxLayout()
             caption.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-            column.addWidget(caption)
+            names = QHBoxLayout()
+            names.addWidget(caption, 1)
+            if pane is self.picture_pane:
+                names.addWidget(self.swipe_caption, 1)
+            column.addLayout(names)
             column.addWidget(pane, 1)
             holder = QWidget()
             holder.setLayout(column)
@@ -323,7 +469,18 @@ class ColortableEditorDialog(QDialog):
         self.picture_note = QLabel("")
         self.picture_note.setWordWrap(True)
         preview_layout.addWidget(self.picture_note)
-        body.addWidget(preview_box, 1)
+        # the color panel and the picture, a handle between them: the picture takes all the
+        # room the window has to spare, and the color panel's too once it is folded away
+        self.body_splitter = PanelSplitter()
+        self.body_splitter.addWidget(self.color_panel)
+        self.body_splitter.addWidget(preview_box)
+        # the color panel keeps its width: the splitter only folds it away or brings it back
+        self.body_splitter.keep_width(self.color_panel)
+        self.body_splitter.setCollapsible(0, True)
+        self.body_splitter.setStretchFactor(1, 1)
+        self.body_splitter.handle(1).setToolTip(_DIVIDER_TIP)
+        self.body_splitter.changed.connect(self._on_panels_changed)
+        body.addWidget(self.body_splitter, 1)
         layout.addLayout(body, 1)
 
         self.status = QLabel("")
@@ -350,6 +507,10 @@ class ColortableEditorDialog(QDialog):
         self.text_btn.setToolTip("Write the stops as text, or paste a table someone shared with you.")
         self.text_btn.clicked.connect(self._on_type_or_paste)
         bottom.addWidget(self.text_btn)
+        self.history_btn = QPushButton("History…")
+        self.history_btn.clicked.connect(self._on_history)
+        bottom.addWidget(self.history_btn)
+        self._show_history_button()
         bottom.addStretch()
         self.save_btn = QPushButton("Save")
         self.save_btn.setDefault(True)
@@ -377,14 +538,17 @@ class ColortableEditorDialog(QDialog):
         self.picture_combo.activated.connect(self._on_picture_combo)
         self.compare_combo.currentIndexChanged.connect(lambda _i: self._schedule_refresh())
         self.name_edit.textChanged.connect(lambda text: self.picture_caption.setText(text.strip() or "This table"))
+        # the boxes beside the table are no undo steps (_edit), so they start the draft's
+        # timer themselves
+        for signal in (self.name_edit.textChanged, self.desc_edit.textChanged, self.hidden_check.toggled):
+            signal.connect(self._schedule_autosave)
+        self.swipe_check.toggled.connect(lambda _on: self._schedule_refresh())
         self.picture_pane.hovered.connect(self._on_picture_hover)
+        self.picture_pane.hovered_compared.connect(self._on_compared_hover)
         self.picture_pane.clicked.connect(self.pick_from_picture)
         # a zoom, a drag, a new picture or a new size: the zoom in words follows
         self.picture_pane.shown.connect(self._show_zoom)
-        # wider than before the color panel came, so the pictures keep their size -- but
-        # never wider or taller than the screen
-        room = self.screen().availableGeometry() if self.screen() else None
-        self.resize(min(1480, room.width() - 40) if room else 1480, min(780, room.height() - 60) if room else 780)
+        self._restore_layout()
 
     def _build_picture_controls(self):
         """Zoom in, Zoom out, Fit and the zoom in words; Copy picture, Save picture and
@@ -422,13 +586,20 @@ class ColortableEditorDialog(QDialog):
             self.copy_picture)
         self.save_picture_btn = self._picture_button(
             "Save picture…", "Save the whole picture in this table, every pixel, as a PNG file.", self.save_picture)
+        self.share_card_btn = self._picture_button(
+            "Share card…", "Make one picture to post: the table's name, its color scale and the storm drawn with it.",
+            self.open_share_card)
+        self.storm_grid_btn = self._picture_button(_GRID_WORDS, _GRID_TIPS[True], self.open_storm_grid)
         self.scale_check = QCheckBox("With the color scale")
         self.scale_check.setChecked(True)
         self.scale_check.setToolTip("Put the color scale and the table's name in the copied or saved picture"
                                     + (", where tcviz pictures carry them." if not edition.is_editor() else "."))
         self.pair_check = QCheckBox("Both, side by side")
         self.pair_check.setToolTip("Copy or save this table's picture and the one it is compared with, side by side.")
-        for widget in (self.copy_picture_btn, self.save_picture_btn, self.scale_check, self.pair_check):
+        # offered while there is a table to compare with (_redraw)
+        self.pair_check.setVisible(False)
+        for widget in (self.copy_picture_btn, self.save_picture_btn, self.share_card_btn, self.scale_check,
+                       self.pair_check):
             self.share_row.addWidget(widget)
         self._share_row_end = QSpacerItem(0, 0)
         self.share_row.addItem(self._share_row_end)
@@ -446,8 +617,8 @@ class ColortableEditorDialog(QDialog):
         return button
 
     def _place_picture_controls(self, beside):
-        """The zoom and copy buttons in a column beside the picture (`beside`), or in two
-        rows under the two pictures compared."""
+        """The zoom and copy buttons in a column beside the picture (`beside`: one picture,
+        or two swiped into one), or in two rows under the two pictures compared."""
         if beside == self._controls_beside:
             return
         self._controls_beside = beside
@@ -470,8 +641,23 @@ class ColortableEditorDialog(QDialog):
             self._controls_gap.changeSize(0, 0, fixed, fixed)
             self.picture_controls.setMinimumWidth(0)
             self.picture_controls.setMaximumWidth(16777215)
-        self.pair_check.setVisible(not beside)
+        # Share card… and Other storms… stand with Copy and Save beside one picture; under
+        # two they end the zoom row, which has room for them: in the copy row they would make
+        # comparing need a wider window
+        for row in (self.zoom_row, self.share_row):
+            row.removeWidget(self.share_card_btn)
+            row.removeWidget(self.storm_grid_btn)
+        if beside:
+            at = self.share_row.indexOf(self.save_picture_btn) + 1
+            self.share_row.insertWidget(at, self.share_card_btn)
+            self.share_row.insertWidget(at + 1, self.storm_grid_btn)
+        else:
+            self.zoom_row.addWidget(self.storm_grid_btn)
+            self.zoom_row.addWidget(self.share_card_btn)
         self.picture_controls.layout().invalidate()
+        # the picture compared with was just shown or hidden: the pictures' area is measured
+        # again, or the window could take a size for the layout it had (and grow by it)
+        colortable_widgets.measure_layout_afresh(self.picture_area)
 
     @staticmethod
     def _range_spin():
@@ -481,6 +667,99 @@ class ColortableEditorDialog(QDialog):
         spin.setSuffix(" °C")
         spin.setKeyboardTracking(False)
         return spin
+
+    # ================================================================== the window's layout, remembered
+
+    def show_help(self):
+        """The "?": how to use the window (_help), in a pop-up under the button that stays
+        until clicked away, with Reset layout under it."""
+        self.help_popup.show_under(self.help_btn)
+
+    def colors_folded(self):
+        """Whether the color panel is folded away, the picture taking its room."""
+        return self.body_splitter.folded(0)
+
+    def fold_colors(self, fold):
+        """Fold the color panel away (`fold`) or bring it back."""
+        self.body_splitter.set_folded(0, fold)
+
+    def _on_panels_changed(self):
+        # folded away with the keyboard in it (the hex box), the keys go back to the bar
+        if self.colors_folded() and self.color_panel.isAncestorOf(QApplication.focusWidget()):
+            self.stop_bar.setFocus()
+
+    def _restore_layout(self):
+        """Open as the window was last left (window_layout): its size, made to fit this
+        screen, and maximized or not; the color panel folded away or not once it is shown
+        (_restore_panels). With nothing saved, as it first opens."""
+        kept = window_layout.get(_LAYOUT_KEY)
+        room = colortable_widgets.screen_room(self)
+        self.resize(*(window_layout.fit_size(kept.get("size"), room) or _default_size(room)))
+        # the layout as the window is shown (showEvent): closing keeps it only if it changed
+        self._layout_base = None
+        self._kept_panels = kept.get("splitter")
+        if kept.get("maximized") is True:
+            self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
+
+    def _restore_panels(self):
+        """The panels as they were left -- unless their saved sizes don't fit the window.
+        Done as the window is first shown: only then is it laid out (one measured before
+        its style has, would be measured wider than it is)."""
+        saved, self._kept_panels = self._kept_panels, None
+        splitter = self.body_splitter
+        least = [self.color_panel.minimumWidth(), self.preview_box.minimumSizeHint().width()]
+        sizes = window_layout.fit_sizes(saved, least, sum(splitter.sizes()), collapsible=(0,))
+        if sizes is not None:
+            splitter.setSizes(sizes)
+
+    def reset_layout(self):
+        """Reset layout (in the "?"): forget the remembered layouts -- layout.json goes -- and
+        put this window back as it first opens, the color panel shown."""
+        window_layout.reset()
+        self._kept_panels = None
+        self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMaximized)
+        self.resize(*_default_size(colortable_widgets.screen_room(self)))
+        self.fold_colors(False)
+        if self._layout_base is not None:
+            # back as it first opens is nothing to keep
+            self._layout_base = self._layout_record()
+        self._say("The window is back to the size it first opens at, with the color panel shown.")
+
+    def _layout_record(self):
+        """The window's layout, as window_layout keeps it: its size (when maximized, the size
+        it goes back to), whether it is maximized, and the splitter's panel widths."""
+        maximized = self.isMaximized()
+        size = self.normalGeometry().size() if maximized else self.size()
+        if size.isEmpty():
+            size = self.size()
+        return {"size": [size.width(), size.height()], "maximized": maximized, "splitter": self.body_splitter.sizes()}
+
+    def _remember_layout(self):
+        """Keep the layout for next time, if it changed while the window was open. A window
+        never shown (the smoke run, a test) had no layout chosen, and keeps none."""
+        if self._layout_base is None:
+            return
+        now = self._layout_record()
+        if _layout_changed(self._layout_base, now):
+            window_layout.update(_LAYOUT_KEY, now)
+        self._layout_base = now
+
+    def setVisible(self, visible):
+        # first shown: measured as it is now, not as the splitter measured the picture's side
+        # while the window was being built (with the picture compared with, hidden since)
+        if visible and self._layout_base is None:
+            colortable_widgets.measure_afresh(self)
+        super().setVisible(visible)
+
+    def done(self, result):
+        # saved or not, the window's layout is kept as it closes -- and a layout that can't be
+        # kept never keeps the window from closing; the storm grid closes with it, keeping its own
+        with contextlib.suppress(Exception):
+            self._remember_layout()
+        if self._storm_grid is not None:
+            with contextlib.suppress(Exception):
+                self._storm_grid.close()
+        super().done(result)
 
     # ================================================================== the fields
 
@@ -510,7 +789,7 @@ class ColortableEditorDialog(QDialog):
         top, bottom = _RANGE_LABELS[m.units]
         self.vmax_label.setText(top)
         self.vmin_label.setText(bottom)
-        self.help_label.setText(_help(m))
+        self.help_popup.set_text(_help(m))
         self.snap_check.setText(f"Snap to {_WHOLE[m.units]}")
         locked = m.kind == "wv"
         self.vmax_spin.setEnabled(not locked)
@@ -626,8 +905,10 @@ class ColortableEditorDialog(QDialog):
 
     def choose_color(self, sid):
         """Go to stop `sid`'s color: choose the stop and put the keyboard in the color
-        panel's hex box (a double-click on a stop, or "Change color")."""
+        panel's hex box (a double-click on a stop, or "Change color") -- the panel brought
+        back first, if it was folded away."""
         self.select(sid)
+        self.fold_colors(False)
         self.color_panel.focus_color()
 
     def current_cmap(self):
@@ -656,6 +937,7 @@ class ColortableEditorDialog(QDialog):
             self._say(f"This table can't be drawn yet: {problem}.")
         self.save_btn.setEnabled(problem is None)
         self._schedule_refresh()
+        self._schedule_autosave()
 
     def _kind_switched(self):
         """The kind changed (an edit, or its undo): the range boxes, the sample, and the
@@ -681,9 +963,16 @@ class ColortableEditorDialog(QDialog):
         self._refresh_timer.stop()
         self._redraw()
         self._show_zoom()
+        # the storm grid follows, drawing itself again a moment later
+        self.drawn.emit()
 
     def _redraw(self):
         cmap = self.current_cmap()
+        # a card shows the table drawn: none of a table that can't be
+        self.share_card_btn.setEnabled(cmap is not None)
+        offered = bool(self.grid_samples())
+        self.storm_grid_btn.setEnabled(offered)
+        self.storm_grid_btn.setToolTip(_GRID_TIPS[offered])
         built = self._cmap[1]
         source = self._preview
         if cmap is None:
@@ -696,8 +985,12 @@ class ColortableEditorDialog(QDialog):
         # the units render labels the scale in: C (from Kelvin), kt (from m/s), dBZ
         self.scale_panel.set_scale(cmap, vmax_d, vmin_d, self.model.units)
         compare = self.compare_combo.currentData()
-        self.compare_pane.holder.setVisible(bool(compare))
-        self._place_picture_controls(beside=not compare)
+        swipe = self.swiping()
+        self.compare_pane.holder.setVisible(bool(compare) and not swipe)
+        self._place_picture_controls(beside=not compare or swipe)
+        self._show_swipe_controls(compare, swipe)
+        if not swipe:
+            self.picture_pane.set_swipe(None)
         if source is None:
             message = "Loading the picture…" if self._loading else "No picture."
             self.picture_pane.set_message(message)
@@ -713,6 +1006,26 @@ class ColortableEditorDialog(QDialog):
         if compare:
             self._show_compare(compare, source)
 
+    def swiping(self):
+        """Whether the table compared with is swiped into this table's picture: Swipe
+        ticked, with a table chosen in Compare with."""
+        return bool(self.compare_combo.currentData()) and self.swipe_check.isChecked()
+
+    def _show_swipe_controls(self, compare, swipe):
+        """Swipe and Both, side by side while there is a table to compare with; swiping,
+        the two names over the picture's two sides, and Copy and Save saying what they
+        hand over."""
+        self.swipe_check.setVisible(bool(compare))
+        least, room = self._picture_room
+        self.picture_combo.setMinimumWidth(least - room if compare else 0)
+        self.pair_check.setVisible(bool(compare))
+        self.picture_caption.setAlignment(Qt.AlignmentFlag.AlignLeft if swipe else Qt.AlignmentFlag.AlignHCenter)
+        self.swipe_caption.setVisible(swipe)
+        what = ("the whole picture as swiped, this table left of the line and the other right of it" if swipe
+                else "the whole picture in this table")
+        self.copy_picture_btn.setToolTip(f"Copy {what}, every pixel, ready to paste into a message.")
+        self.save_picture_btn.setToolTip(f"Save {what}, every pixel, as a PNG file.")
+
     def _show_compare(self, name, source):
         # the other table does not change while this one is edited: worked out once per
         # table, picture and change to the library, not on every edit
@@ -727,15 +1040,23 @@ class ColortableEditorDialog(QDialog):
             except Exception:
                 self._compared = (None, None)
                 self.compare_pane.set_message(f"'{name}' can't be drawn.")
+                self.picture_pane.set_swipe(None)
+                self.swipe_caption.setText(f"'{name}' can't be drawn.")
                 return
             norm = norm or Normalize(vmin=vmin, vmax=vmax)
             self._compared = (key, _Compared(name, other, norm, vmax, vmin, source.rows(norm, other.N),
                                              colortable_preview.lut_for(other)))
         compared = self._compared[1]
+        full_rows = functools.partial(source.window_rows, compared.norm, compared.cmap.N)
+        if self.swiping():
+            # one picture: the other table's rows and colors go to this table's pane, which
+            # draws them right of its line (the pane compared with is hidden, and left as it was)
+            self.picture_pane.set_swipe(compared.rows, compared.lut, full_rows)
+            self.swipe_caption.setText(name)
+            return
         self.compare_pane.set_message("")
         self.compare_pane.set_index_image(compared.rows, stride=source.stride, full_shape=source.full_shape,
-                                          full_rows=functools.partial(source.window_rows, compared.norm,
-                                                                      compared.cmap.N))
+                                          full_rows=full_rows)
         self.compare_pane.set_lut(compared.lut)
         self.compare_caption.setText(name)
 
@@ -794,6 +1115,18 @@ class ColortableEditorDialog(QDialog):
             text += f", drawn in this table's color for {_value_text(spot.in_table)} {unit}"
         self.status.setText(text + ". Click to choose the stop that colors it; Shift-click to add a stop there.")
 
+    def _on_compared_hover(self, pixel):
+        """The pointer right of the swipe's line, over the table compared with: the value
+        there, and which table that side is. A click there chooses nothing."""
+        spot = None if pixel is None else self.picture_spot(*pixel)
+        compared = self._compared[1]
+        if spot is None or compared is None:
+            self.status.setText(self._said)
+            return
+        self.status.setText(f"Under the pointer: {_value_text(spot.value)} {self.model.unit_label}, drawn in "
+                            f"{compared.name}, the table compared with. Click left of the line to choose a stop "
+                            "of this table.")
+
     def pick_from_picture(self, row, col, add=False):
         """A click on this table's picture at (row, col): choose the stop that colors that
         spot (ColortableModel.stop_for_value), its color then in the color panel -- or, with
@@ -848,8 +1181,10 @@ class ColortableEditorDialog(QDialog):
         """(PIL image, the whole number each pixel was enlarged by) of the whole saved
         picture in this table, as Copy picture and Save picture hand it over: every pixel,
         colored as tcviz colors it (colortable_preview.full_picture), with the color scale
-        and the table's name when "With the color scale" is ticked, and beside the picture
-        compared with when "Both, side by side" is. (None, None) when there is no picture."""
+        and the table's name when "With the color scale" is ticked; beside the picture
+        compared with when "Both, side by side" is, or else, swiping, swiped at the line
+        as the picture shows it (colortable_preview.swiped_picture), each table's scale and
+        name on its own side. (None, None) when there is no picture."""
         self.flush()
         if self._no_picture("copy"):
             return None, None
@@ -858,24 +1193,47 @@ class ColortableEditorDialog(QDialog):
         vmax_d, vmin_d = source.drawing_range(vmax_k, vmin_k)
         scale = self.scale_check.isChecked()
         units = self.model.units
+        name = self.name_edit.text().strip() or "This table"
+        how, compared = self._handed_over()
+        if how == "swipe":
+            fraction = self.picture_pane.swipe_fraction()
+            mine = colortable_preview.PictureTable(cmap, Normalize(vmin=vmin_d, vmax=vmax_d), vmax_d, vmin_d, name)
+            theirs = colortable_preview.PictureTable(compared.cmap, compared.norm, compared.vmax, compared.vmin,
+                                                     compared.name)
+            return colortable_preview.swiped_picture(source, mine, theirs, 0.5 if fraction is None else fraction,
+                                                     units, scale=scale)
         image, factor = colortable_preview.full_picture(
             source, cmap, Normalize(vmin=vmin_d, vmax=vmax_d), vmax_d, vmin_d, units, scale=scale,
-            name=(self.name_edit.text().strip() or "This table") if scale else None)
-        compared = self._side_by_side()
-        if compared is not None:
+            name=name if scale else None)
+        if how == "pair":
             other, _factor = colortable_preview.full_picture(source, compared.cmap, compared.norm, compared.vmax,
                                                              compared.vmin, units, scale=scale,
                                                              name=compared.name if scale else None)
             image = colortable_preview.side_by_side(image, other)
         return image, factor
 
-    def _side_by_side(self):
-        """The table compared with, when both pictures are to be handed over, else None."""
+    def _handed_over(self):
+        """What Copy picture and Save picture hand over: ("one", None) for this table's
+        picture; ("pair", the table compared with) for both side by side, when that box is
+        ticked; ("swipe", the table compared with) for the swiped picture, swiping."""
         name = self.compare_combo.currentData()
-        if not (name and self.pair_check.isChecked()) or self._compared[0] is None:
-            return None
-        key = (name, id(self._preview), colortable_registry.cache_key())
-        return self._compared[1] if self._compared[0] == key else None
+        if not name or self._compared[0] != (name, id(self._preview), colortable_registry.cache_key()):
+            return "one", None
+        if self.pair_check.isChecked():
+            return "pair", self._compared[1]
+        if self.swiping():
+            return "swipe", self._compared[1]
+        return "one", None
+
+    def _handed_over_words(self, how, compared):
+        """"the picture", "both pictures side by side", or which side of the swiped one is
+        which, for the status line."""
+        if how == "pair":
+            return "both pictures side by side"
+        if how == "swipe":
+            mine = self.name_edit.text().strip() or "this table"
+            return f"the swiped picture, {mine} left of the line and {compared.name} right of it"
+        return "the picture"
 
     def _size_words(self, image, factor):
         """"1920 × 1920 pixels (its 384 × 384 pixels each drawn 5 × 5, ...)"."""
@@ -896,13 +1254,14 @@ class ColortableEditorDialog(QDialog):
             return False
         with _busy():
             image, factor = self.shared_picture()
+            what = self._handed_over_words(*self._handed_over())
             taken = image is not None and self._put_on_clipboard(_qimage(image))
         if image is None:
             self._say(self._no_picture("copy"))
         elif taken:
             # on Wayland, and on X without a clipboard keeper, what was copied goes when the
             # program that copied it closes
-            self._say(f"Copied the picture, {self._size_words(image, factor)}. Paste it before you close "
+            self._say(f"Copied {what}, {self._size_words(image, factor)}. Paste it before you close "
                       f"{edition.app_name()}.")
         else:
             self._say("The picture couldn't be put on the clipboard. Use Save picture… to keep it as a file "
@@ -925,6 +1284,7 @@ class ColortableEditorDialog(QDialog):
             path = path.with_name(path.name + ".png")
         with _busy():
             image, factor = self.shared_picture()
+            what = self._handed_over_words(*self._handed_over())
             if image is None:
                 self._say(self._no_picture("save"))
                 return None
@@ -939,16 +1299,16 @@ class ColortableEditorDialog(QDialog):
                 self._say(f"The picture couldn't be saved there ({e.strerror or e}). Nothing was saved.")
                 return None
         _last_save_folder = path.parent
-        self._say(f"Saved the picture, {self._size_words(image, factor)}, as {path}.")
+        self._say(f"Saved {what}, {self._size_words(image, factor)}, as {path}.")
         return path
 
     def _suggested_file(self):
-        """The file Save picture offers: the table's name (and the other's, side by side),
-        in the folder saved to last, else Pictures, else the home folder."""
+        """The file Save picture offers: the table's name (and the other's, side by side or
+        swiped), in the folder saved to last, else Pictures, else the home folder."""
         name = self.name_edit.text().strip() or "colortable"
-        compared = self._side_by_side()
-        if compared is not None:
-            name += f"_beside_{compared.name}"
+        how, compared = self._handed_over()
+        if how != "one":
+            name += ("_beside_" if how == "pair" else "_swiped_with_") + compared.name
         name = re.sub(r"[^\w.-]+", "_", name).strip("._") or "colortable"
         folder = _last_save_folder
         if folder is None or not folder.is_dir():
@@ -964,6 +1324,114 @@ class ColortableEditorDialog(QDialog):
         except RuntimeError:
             return False
         return held is not None and held.hasImage()
+
+    # ================================================================== the share card
+
+    def open_share_card(self):
+        """Share card…: the window that makes one picture to post of what the editor shows
+        (share_card_dialog). The window, or None when there is no card to make (the status
+        line says why)."""
+        from tcviz_gui.pages.share_card_dialog import ShareCardDialog
+        if self._loading:
+            self._say("The picture is still loading. Press Share card… again once it shows.")
+            return None
+        pictures = self.card_pictures()
+        if not pictures:
+            self._say("This table can't be drawn yet, so there is no card to make.")
+            return None
+        window = ShareCardDialog(self, pictures, self.card_title(), self.model.units)
+        self._run(window)
+        return window
+
+    def _compared_shown(self):
+        """The table compared with (_Compared) as the picture shows it now, or None."""
+        name = self.compare_combo.currentData()
+        if not name or self._compared[0] != (name, id(self._preview), colortable_registry.cache_key()):
+            return None
+        return self._compared[1]
+
+    def card_pictures(self):
+        """What Share card… puts on the card, as the editor shows it (tcviz.share_card's
+        CardPicture each): this table's picture; beside the picture of the table compared
+        with, comparing; or one picture in both tables, split where the line is, swiping.
+        Each table at the range the picture is drawn at, with the lines shown under the
+        picture. With no picture, the table alone; [] when the table can't be drawn."""
+        from tcviz import share_card
+        self.flush()
+        if self.current_cmap() is None:
+            return []
+        source = self._preview
+        cmap, vmax_k, vmin_k = self._cmap[1]
+        vmax_d, vmin_d = source.drawing_range(vmax_k, vmin_k) if source is not None else (vmax_k, vmin_k)
+        mine = colortable_preview.PictureTable(cmap, Normalize(vmin=vmin_d, vmax=vmax_d), vmax_d, vmin_d,
+                                               self.name_edit.text().strip() or "This table")
+        if source is None:
+            return [share_card.CardPicture(None, (mine,))]
+        caption = share_card.caption_lines(source)
+        compared = self._compared_shown()
+        if compared is None:
+            return [share_card.CardPicture(source.full, (mine,), caption)]
+        theirs = colortable_preview.PictureTable(compared.cmap, compared.norm, compared.vmax, compared.vmin,
+                                                 compared.name)
+        if self.swiping():
+            fraction = self.picture_pane.swipe_fraction()
+            return [share_card.CardPicture(source.full, (mine, theirs), caption,
+                                           0.5 if fraction is None else fraction)]
+        return [share_card.CardPicture(source.full, (mine,), caption),
+                share_card.CardPicture(source.full, (theirs,), caption)]
+
+    def card_title(self):
+        """The title Share card… starts from: the table's name -- "mine vs bd05" while
+        another table is compared with it."""
+        name = self.name_edit.text().strip() or "This table"
+        compared = self._compared_shown()
+        return f"{name} vs {compared.name}" if compared is not None else name
+
+    # ================================================================== the storm grid
+
+    def grid_samples(self):
+        """The bundled samples this table can be tried on (colortable_preview.PICTURE_KINDS:
+        an infrared table on the water-vapor ones too), in the manifest's order -- what the
+        storm grid offers. [] for a winds or radar table, and with no samples."""
+        kinds = colortable_preview.PICTURE_KINDS.get(self.model.kind, ())
+        return [s for s in self._bundled.values() if s.kind in kinds]
+
+    def drawn_table(self):
+        """(cmap, vmax K, vmin K) the table is drawn with now -- the same tuple until it next
+        changes -- or None when it can't be drawn. What the storm grid draws its storms with,
+        each at the range it is drawn at (PreviewSource.drawing_range)."""
+        return self._cmap[1] if self.current_cmap() is not None else None
+
+    def table_name(self):
+        """The table's name as the pictures carry it: the Name box, or "This table"."""
+        return self.name_edit.text().strip() or "This table"
+
+    def open_storm_grid(self):
+        """Other storms…: the storm grid window (storm_grid_dialog), beside the
+        editor, which stays usable -- opened once and shown again after, with the storms it
+        already read. The window, or None when there are no storms to try the table on."""
+        from tcviz_gui.pages.storm_grid_dialog import StormGridDialog
+        if not self.grid_samples():
+            self._say(_GRID_TIPS[False])
+            return None
+        if self._storm_grid is None:
+            self._storm_grid = StormGridDialog(self)
+        window = self._storm_grid
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        return window
+
+    def show_sample(self, sample_id):
+        """Show bundled sample `sample_id` in the Picture box, as choosing it there does (a
+        click on a storm in the storm grid). Whether it is shown now."""
+        choice = f"bundled:{sample_id}"
+        if sample_id not in self._bundled:
+            return False
+        if choice != self._picture_choice or self._preview is None:
+            with _busy():
+                self._load_choice(choice)
+        return self._picture_choice == choice and self._preview is not None
 
     # ================================================================== the pictures
 
@@ -1123,6 +1591,11 @@ class ColortableEditorDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
+        if self._layout_base is None:
+            self._restore_panels()
+            self._layout_base = self._layout_record()
+        # a change made before the window showed (a version loaded from History…) is kept too
+        self._schedule_autosave()
         if not self._searched:
             self._searched = True
             # Colortable Editor opens no pictures of the person's own, so has none to find
@@ -1184,6 +1657,52 @@ class ColortableEditorDialog(QDialog):
                      hidden=self.hidden_check.isChecked())
         return entry
 
+    # ================================================================== earlier versions
+
+    def _show_history_button(self):
+        """History… works for a table of yours that has been saved over at least once; a new
+        table or a copy has no versions yet."""
+        has = self._original is not None and colortable_history.has_versions(self._original)
+        self.history_btn.setEnabled(has)
+        self.history_btn.setToolTip(_HISTORY_TIPS[has])
+
+    def _on_history(self):
+        from tcviz_gui.pages.colortable_history_dialog import ColortableHistoryDialog
+        window = ColortableHistoryDialog(self, self._original, action="restore")
+        if self._run(window) and window.chosen is not None:
+            self.restore_version(window.chosen)
+
+    def restore_version(self, version):
+        """Load an earlier version (a colortable_history.Version) into the editor -- its
+        stops, range, kind and description -- as one undo step. Nothing is saved until Save.
+        Whether it was loaded; the status line says either way."""
+        if colortable_history.same_table(version.entry, self._entry_now()):
+            self._say(f"The table open now is already the same as version {version.label}.")
+            return False
+        try:
+            loaded = ColortableModel.from_entry(version.entry).state()
+        except (KeyError, ValueError, TypeError):
+            self._say(f"Version {version.label} can't be read, so it was not loaded.")
+            return False
+        before = self.model.state()
+        # the range the table last had in each of the other units stays, for a change of kind
+        ranges = dict(before.ranges)
+        ranges.update(loaded.ranges)
+        after = loaded._replace(ranges=tuple(sorted(ranges.items())))
+        descriptions = (self.desc_edit.text(), version.entry.get("description", ""))
+        self.model.restore(after)
+        self.undo_stack.push(_VersionStep(self, f"Restore version {version.label}", before, after, descriptions))
+        self.selected = None
+        self._set_description(descriptions[1])
+        self._show_kind_and_range()
+        self._changed()
+        self._say(f"Version {version.label} loaded; press Save to keep it.")
+        return True
+
+    def _set_description(self, text):
+        self.desc_edit.setText(text)
+        self.desc_edit.setCursorPosition(0)
+
     # ================================================================== saving
 
     @property
@@ -1196,9 +1715,12 @@ class ColortableEditorDialog(QDialog):
         self.model.description = self.desc_edit.text().strip()
         self.model.hidden = self.hidden_check.isChecked()
 
+        # what could not be kept in History, said by whoever opened the editor (it closes)
+        problems = []
+
         def save(replace):
             return colortable_library.save(name, self.model.stored_stops(), original=self._original,
-                                           replace=replace, **self.model.save_fields())
+                                           replace=replace, history_problems=problems, **self.model.save_fields())
         try:
             try:
                 entry = save(replace=False)
@@ -1216,8 +1738,11 @@ class ColortableEditorDialog(QDialog):
             QMessageBox.warning(self, "Couldn't save colortable", str(e))
             return
         self.entry = entry
+        self.history_note = " ".join(problems)
         self.undo_stack.setClean()
         self._start_fields = self._fields_now()
+        self._marked_changed = False
+        self._drop_draft()
         self.saved.emit(entry)
         self._announce(entry["name"])
         self.accept()
@@ -1231,12 +1756,62 @@ class ColortableEditorDialog(QDialog):
             library_events.notify("saved", name)
 
     def has_changes(self):
-        return not self.undo_stack.isClean() or self._fields_now() != self._start_fields
+        return self._marked_changed or not self.undo_stack.isClean() or self._fields_now() != self._start_fields
+
+    def mark_changed(self):
+        """Count the table as unsaved from now on, whatever undo does: it came back from a
+        draft, so even the state it opened in was never saved. Closing asks first."""
+        self._marked_changed = True
 
     def reject(self):
         if self.has_changes() and not self._confirm_discard():
             return
+        self._drop_draft()
         super().reject()
+
+    # ================================================================== kept in case the program closes
+
+    def _schedule_autosave(self, *_args):
+        """A change: the draft is written (or removed) DRAFT_DELAY_MS after the last one.
+        Only by an editor on screen: one never shown -- a smoke run's, a test's -- has no
+        one's work in it to keep, and must not leave a draft behind."""
+        if self._autosaving and self.isVisible():
+            self._draft_timer.start()
+
+    def _draft_content(self):
+        return (self._entry_now(), self._mode, self._original, self._source)
+
+    def _autosave(self):
+        """Keep the unsaved table in its draft file -- or, with nothing unsaved (an undo back
+        to what was saved), remove the file. A write that fails never stops the editing:
+        the status line says so once."""
+        if not (self._autosaving and self.isVisible()):
+            return
+        try:
+            if not self.has_changes():
+                if self._draft_written is not None:
+                    colortable_drafts.remove(self._draft_id)
+                    self._draft_written = None
+                return
+            content = self._draft_content()
+            if content == self._draft_written:
+                return
+            entry, mode, original, source = content
+            colortable_drafts.write(self._draft_id, entry, mode, original, source=source, base=self._draft_base)
+            self._draft_written = content
+        except Exception as e:  # noqa: BLE001 -- a safety copy that can't be kept must never stop the editing
+            if not self._draft_failed:
+                self._draft_failed = True
+                self._say(f"Your unsaved changes can't be kept in case {edition.app_name()} closes unexpectedly: "
+                          f"{colortable_history.plain_reason(e)}. You can keep editing, and Save still works.")
+
+    def _drop_draft(self):
+        """Saved, or let go: no more autosaving, and the draft file goes."""
+        self._autosaving = False
+        self._draft_timer.stop()
+        with contextlib.suppress(Exception):
+            colortable_drafts.remove(self._draft_id)
+        self._draft_written = None
 
     # The pop-ups, each in one place so a test can answer it.
 
@@ -1310,6 +1885,19 @@ def _kind_or_ir(fields):
         return kind_of_entry({"stops": [], **fields})
     except (TypeError, ValueError, KeyError):
         return "ir"
+
+
+def _default_size(room):
+    """The size the window first opens at: _DEFAULT_SIZE, or as much of the screen as there
+    is (`room`, colortable_widgets.screen_room)."""
+    return window_layout.fit_size(_DEFAULT_SIZE, room)
+
+
+def _layout_changed(before, now):
+    """Whether two _layout_record()s differ in what is restored: the size, maximized, and the
+    width of every panel but the picture, which takes whatever room is left."""
+    return (any(before[key] != now[key] for key in ("size", "maximized"))
+            or before["splitter"][:-1] != now["splitter"][:-1])
 
 
 def _wrap(layout):
