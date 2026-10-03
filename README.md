@@ -21,15 +21,22 @@ Linux Mint 21 or newer).
 
 ### Windows
 
-1. Download `ColortableEditor.exe`.
-2. Double-click it.
+1. Download `ColortableEditor-Windows.zip`.
+2. Right-click it, choose **Extract All…**, pick where it should go (Documents, say) and
+   click **Extract**.
+3. Open the new `ColortableEditor` folder and double-click **ColortableEditor.exe**.
+
+**Extract it first.** Windows can open a zip like a folder, but the program won't start from
+inside one: it can't find its own files there.
 
 The program isn't signed, so Windows may say **"Windows protected your PC"**. Click
 **More info**, then **Run anyway**. Windows asks only the first time.
 
-It takes a few seconds to start while the program unpacks itself, and the very first start
-can take a little longer while Windows checks it. It is one file: there is nothing to
-install, and you can keep it in any folder.
+Keep the `_internal` folder beside `ColortableEditor.exe`: it holds the program's own files and the
+sample storms. Nothing is installed. To start it from the desktop, right-click
+`ColortableEditor.exe` and choose **Send to → Desktop (create shortcut)**. For a new version, delete
+the old folder and extract the new zip; your own tables are kept elsewhere (below), so they
+stay.
 
 ### Linux
 
@@ -132,8 +139,8 @@ pip install pyinstaller==6.22.3
 pyinstaller colortable_editor.spec --noconfirm
 ```
 
-On Windows that makes `dist\ColortableEditor.exe`. On Linux it makes the folder
-`dist/ColortableEditor/`, and `bash packaging/build_appimage.sh` then wraps it into
+It makes the folder `dist/ColortableEditor/`, with `ColortableEditor.exe` inside on Windows; GitHub zips that
+folder into `ColortableEditor-Windows.zip`. On Linux, `bash packaging/build_appimage.sh` then wraps it into
 `ColortableEditor-x86_64.AppImage`. GitHub builds both the same way when a version is tagged
 (`.github/workflows/release.yml`).
 

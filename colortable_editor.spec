@@ -3,9 +3,10 @@
 
     pyinstaller colortable_editor.spec --noconfirm
 
-On Windows: ONE file, dist/ColortableEditor.exe, with no console window. On Linux: a folder,
-dist/ColortableEditor/, which packaging/build_appimage.sh wraps into ColortableEditor-x86_64.AppImage.
-COLORTABLE_EDITOR_ONEFILE=1 (or 0) asks for the other kind on either system.
+A folder, dist/ColortableEditor/, on both systems (with no console window on Windows). The release
+workflow zips it into ColortableEditor-Windows.zip on Windows; on Linux packaging/build_appimage.sh wraps it into
+ColortableEditor-x86_64.AppImage. COLORTABLE_EDITOR_ONEFILE=1 builds one self-unpacking file instead, which is
+slower to start: it unpacks everything, the sample storms included, on every start.
 
 The program finds what ships with it -- the six built-in tables, the sample pictures and
 the font -- under sys._MEIPASS, where PyInstaller unpacks them, at the same paths as in this
@@ -19,7 +20,7 @@ from PyInstaller.utils.hooks import copy_metadata
 HERE = SPECPATH  # noqa: F821 -- PyInstaller's: this file's folder
 NAME = "ColortableEditor"
 WINDOWS = sys.platform == "win32"
-ONEFILE = os.environ.get("COLORTABLE_EDITOR_ONEFILE", "1" if WINDOWS else "0").strip() == "1"
+ONEFILE = os.environ.get("COLORTABLE_EDITOR_ONEFILE", "0").strip() == "1"
 
 
 def here(*parts):

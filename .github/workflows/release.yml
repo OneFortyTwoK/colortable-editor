@@ -27,7 +27,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller==6.22.3
-      - name: Build ColortableEditor.exe (one file)
+      - name: Build the ColortableEditor folder
         run: pyinstaller colortable_editor.spec --noconfirm
       - name: Start it once (smoke mode)
         # A windowed program has no console: its line goes to smoke.txt.
@@ -38,15 +38,19 @@ jobs:
           $env:QT_QPA_PLATFORM = "offscreen"
           $env:COLORTABLE_EDITOR_SMOKE_FILE = Join-Path $PWD "smoke.txt"
           $env:COLORTABLE_EDITOR_CONFIG_DIR = Join-Path $env:RUNNER_TEMP "ce-config"
-          $run = Start-Process -FilePath "dist\ColortableEditor.exe" -Wait -PassThru
+          $run = Start-Process -FilePath "dist\ColortableEditor\ColortableEditor.exe" -Wait -PassThru
           if (Test-Path smoke.txt) { Get-Content smoke.txt }
           if ($run.ExitCode -ne 0) { Write-Error "the smoke run failed (exit $($run.ExitCode))"; exit 1 }
           if (-not (Select-String -Path smoke.txt -Pattern 'smoke: 6 tables listed \(6 known\), [1-9][0-9]* bundled samples and 2 older ones' -Quiet)) {
             Write-Error "the smoke run did not find its tables and samples"; exit 1 }
+      - name: Zip it into ColortableEditor-Windows.zip
+        # The folder itself goes in, so Extract All gives one ColortableEditor folder, not loose files.
+        shell: pwsh
+        run: Compress-Archive -Path "dist\ColortableEditor" -DestinationPath "ColortableEditor-Windows.zip"
       - uses: actions/upload-artifact@v7
         with:
           name: windows
-          path: dist/ColortableEditor.exe
+          path: ColortableEditor-Windows.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -107,5 +111,5 @@ jobs:
           draft: true
           generate_release_notes: true
           files: |
-            artifacts/ColortableEditor.exe
+            artifacts/ColortableEditor-Windows.zip
             artifacts/ColortableEditor-x86_64.AppImage
