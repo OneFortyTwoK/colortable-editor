@@ -12,10 +12,10 @@
     "band_words": "10.3 µm infrared (ABI band 13)",
     "obs_time_utc": "2025-10-28T12:10:20.500000+00:00",
     "pixel_km": 2.338,
-    "description": "Melissa at her 165 kt peak, five hours before landfall in Jamaica: a clear, round eye inside a ring of -80 °C cloud tops.",
+    "description": "Hurricane Melissa (2025) at 165 knots on 2025-10-28T12:10Z",
     "coldest_c": -89.6,
     "warmest_c": 23.8,
-    "credit": "NOAA GOES-19 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-19, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes19/ABI-L1b-RadF/2025/301/12/OR_ABI-L1b-RadF-M6C13_G19_s20253011210205_e20253011219525_c20253011219574.nc"
   },
   {
@@ -31,10 +31,10 @@
     "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
     "obs_time_utc": "2026-09-22T20:07:47.822613+00:00",
     "pixel_km": 0.375,
-    "description": "Polo at its 155 kt peak, seen almost straight down by NOAA-20: a warm eye near +23 °C in a solid ring of -70 to -80 °C cloud, at 375 m.",
+    "description": "Hurricane Polo (2026) at 150 knots on 2026-09-22T20:07Z",
     "coldest_c": -88.9,
     "warmest_c": 42.4,
-    "credit": "NOAA-20 VIIRS (NOAA/NASA JPSS), from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA-20 VIIRS, NOAA Open Data Dissemination",
     "source": "s3://noaa-nesdis-n20-pds/VIIRS-I5-SDR/2026/09/22/SVI05_j01_d20260922_t2006286_e2007513_b45833_c20260922203809203000_oeac_ops.h5"
   },
   {
@@ -50,10 +50,10 @@
     "band_words": "10.3 µm infrared (ABI band 13)",
     "obs_time_utc": "2024-10-07T20:00:20.500000+00:00",
     "pixel_km": 2.566,
-    "description": "Milton at its 155 kt peak in the Gulf: a pinhole eye only about 12 km across, a few pixels wide, inside -80 °C tops.",
+    "description": "Hurricane Milton (2024) at 155 knots on 2024-10-07T20:00Z",
     "coldest_c": -81.2,
     "warmest_c": 35.5,
-    "credit": "NOAA GOES-16 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-16, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes16/ABI-L1b-RadF/2024/281/20/OR_ABI-L1b-RadF-M6C13_G16_s20242812000205_e20242812009525_c20242812009582.nc"
   },
   {
@@ -69,10 +69,10 @@
     "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
     "obs_time_utc": "2026-09-28T12:09:43.308554+00:00",
     "pixel_km": 0.375,
-    "description": "Nolo at its 135 kt peak southwest of Hawaii, at night: a wide, round eye about 50 km across, with eyewall tops as cold as -89 °C, at 375 m.",
+    "description": "Hurricane Nolo (2026) at 135 knots on 2026-09-28T12:09Z",
     "coldest_c": -88.8,
     "warmest_c": 25.4,
-    "credit": "NOAA-20 VIIRS (NOAA/NASA JPSS), from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA-20 VIIRS, NOAA Open Data Dissemination",
     "source": "s3://noaa-nesdis-n20-pds/VIIRS-I5-SDR/2026/09/28/SVI05_j01_d20260928_t1208463_e1210108_b45913_c20260928124232338000_oeac_ops.h5"
   },
   {
@@ -88,10 +88,10 @@
     "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
     "obs_time_utc": "2024-10-07T19:19:30.611007+00:00",
     "pixel_km": 0.375,
-    "description": "Milton near its 155 kt peak in the Gulf, seen by NOAA-21 at 375 m: a pinhole eye about 14 km across, warmer than +20 °C, inside a ring of -80 °C tops.",
+    "description": "Hurricane Milton (2024) at 155 knots on 2024-10-07T19:19Z",
     "coldest_c": -84.3,
     "warmest_c": 38.4,
-    "credit": "NOAA-21 VIIRS (NOAA/NASA JPSS), from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA-21 VIIRS, NOAA Open Data Dissemination",
     "source": "s3://noaa-nesdis-n21-pds/VIIRS-I5-SDR/2024/10/07/SVI05_j02_d20241007_t1918176_e1919405_b09896_c20241007194720796000_oebc_ops.h5"
   },
   {
@@ -107,10 +107,10 @@
     "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
     "obs_time_utc": "2026-09-22T08:03:21.344836+00:00",
     "pixel_km": 0.375,
-    "description": "Polo at night, strengthening fast from 120 to 140 kt twelve hours before the daytime Polo sample: a small eye about 12 km across in a ring of -78 °C tops, at 375 m.",
+    "description": "Hurricane Polo (2026) at 125 knots on 2026-09-22T08:03Z",
     "coldest_c": -97.7,
     "warmest_c": 29.1,
-    "credit": "NOAA-21 VIIRS (NOAA/NASA JPSS), from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA-21 VIIRS, NOAA Open Data Dissemination",
     "source": "s3://noaa-nesdis-n21-pds/VIIRS-I5-SDR/2026/09/22/SVI05_j02_d20260922_t0802245_e0803492_b20033_c20260922083739225000_oeac_ops.h5"
   },
   {
@@ -126,10 +126,10 @@
     "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
     "obs_time_utc": "2013-11-07T16:19:47.591635+00:00",
     "pixel_km": 0.375,
-    "description": "Haiyan near its 170 kt peak, four hours before landfall in the Philippines: 92% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a clear eye; the swath ends in the west of the box.",
+    "description": "Super Typhoon Haiyan (2013) at 170 knots on 2013-11-07T16:19Z",
     "coldest_c": -98.7,
     "warmest_c": 20.6,
-    "credit": "NASA/NOAA Suomi NPP VIIRS, from NASA LAADS DAAC",
+    "credit": "Data: Suomi NPP VIIRS, NASA LAADS DAAC",
     "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/VNP02IMG/VNP02IMG.A2013311.1618.002.2021015211618.nc, with VNP03IMG positions"
   },
   {
@@ -145,10 +145,10 @@
     "band_words": "11.03 µm infrared (MODIS band 31, 1 km)",
     "obs_time_utc": "2013-11-07T13:49:08.398226+00:00",
     "pixel_km": 1.0,
-    "description": "Haiyan at 165 kt, seven hours before landfall in the Philippines, at 1 km: 92% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a clear eye.",
+    "description": "Super Typhoon Haiyan (2013) at 165 knots on 2013-11-07T13:49Z",
     "coldest_c": -96.1,
     "warmest_c": 23.7,
-    "credit": "NASA Terra MODIS, from NASA LAADS DAAC",
+    "credit": "Data: NASA Terra MODIS, NASA LAADS DAAC",
     "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/MOD021KM/MOD021KM.A2013311.1345.007.2025085105720.nc"
   },
   {
@@ -164,10 +164,10 @@
     "band_words": "10.8 µm infrared (SGLI TI01, 250 m)",
     "obs_time_utc": "2018-10-24T12:31:00+00:00",
     "pixel_km": 0.25,
-    "description": "Yutu at its 155 kt peak, hours before its eye crossed Tinian, at 250 m: a clear eye about 40 km across in -82 °C tops; SGLI's scenes leave the box's south and east edges empty.",
+    "description": "Super Typhoon Yutu (2018) at 155 knots on 2018-10-24T12:31Z",
     "coldest_c": -98.3,
     "warmest_c": 26.8,
-    "credit": "JAXA GCOM-C SGLI, from JAXA G-Portal (no account needed for this download); original data for this value added data product was provided by Japan Aerospace Exploration Agency",
+    "credit": "Data: JAXA GCOM-C SGLI. Original data for this value added data product was provided by Japan Aerospace Exploration Agency.",
     "source": "https://gportal.jaxa.jp/download/standard/GCOM-C/GCOM-C.SGLI/L1B/2/2018/10/24/GC1SG1_201810241231M28501_1BSG_IRSNQ_2003.h5 and the next scene, GC1SG1_201810241232K28502_1BSG_IRSNQ_2003.h5"
   },
   {
@@ -183,10 +183,10 @@
     "band_words": "11.03 µm infrared (MODIS band 31, 1 km)",
     "obs_time_utc": "2016-07-06T04:50:54.558896+00:00",
     "pixel_km": 1.0,
-    "description": "Nepartak near its 150 kt peak southeast of Taiwan, at 1 km: a small, clear eye about 17 km across and warmer than +28 °C, in a ring of -80 °C tops.",
+    "description": "Super Typhoon Nepartak (2016) at 150 knots on 2016-07-06T04:50Z",
     "coldest_c": -90.6,
     "warmest_c": 28.6,
-    "credit": "NASA Aqua MODIS, from NASA LAADS DAAC",
+    "credit": "Data: NASA Aqua MODIS, NASA LAADS DAAC",
     "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/MYD021KM/MYD021KM.A2016188.0450.007.2025090211024.nc"
   },
   {
@@ -202,10 +202,10 @@
     "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
     "obs_time_utc": "2023-05-13T19:52:16.853944+00:00",
     "pixel_km": 0.375,
-    "description": "Mocha at 130 kt and strengthening in the Bay of Bengal, half a day before landfall in Myanmar: 89% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a small cloud-filled eye.",
+    "description": "Cyclone Mocha (2023) at 135 knots on 2023-05-13T19:52Z",
     "coldest_c": -93.9,
     "warmest_c": 26.1,
-    "credit": "NOAA-20 VIIRS (NOAA/NASA JPSS), from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA-20 VIIRS, NOAA Open Data Dissemination",
     "source": "s3://noaa-nesdis-n20-pds/VIIRS-I5-SDR/2023/05/13/SVI05_j01_d20230513_t1951071_e1952299_b28410_c20230513202908693697_oebc_ops.h5"
   },
   {
@@ -221,10 +221,10 @@
     "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
     "obs_time_utc": "2026-03-18T15:22:54.022516+00:00",
     "pixel_km": 0.375,
-    "description": "Narelle at about 95 kt and strengthening fast in the Coral Sea: 69% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), in a compact central dense overcast with tops to -98 °C.",
+    "description": "Cyclone Narelle (2026) at 95 knots on 2026-03-18T15:22Z",
     "coldest_c": -99.2,
     "warmest_c": 20.8,
-    "credit": "NOAA-21 VIIRS (NOAA/NASA JPSS), from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA-21 VIIRS, NOAA Open Data Dissemination",
     "source": "s3://noaa-nesdis-n21-pds/VIIRS-I5-SDR/2026/03/18/SVI05_j02_d20260318_t1521424_e1523071_b17370_c20260318154828495000_oeac_ops.h5"
   },
   {
@@ -240,10 +240,10 @@
     "band_words": "10.3 µm infrared (ABI band 13)",
     "obs_time_utc": "2026-07-27T08:40:21.600000+00:00",
     "pixel_km": 2.612,
-    "description": "Genevieve near its 140 kt peak: a clear eye about 35 km across inside a thick ring of -70 to -76 °C cloud tops.",
+    "description": "Hurricane Genevieve (2026) at 140 knots on 2026-07-27T08:40Z",
     "coldest_c": -77.1,
     "warmest_c": 22.3,
-    "credit": "NOAA GOES-18 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/208/08/OR_ABI-L1b-RadF-M6C13_G18_s20262080840216_e20262080849535_c20262080849582.nc"
   },
   {
@@ -259,10 +259,10 @@
     "band_words": "10.3 µm infrared (ABI band 13)",
     "obs_time_utc": "2026-08-19T05:20:20.500000+00:00",
     "pixel_km": 3.04,
-    "description": "Lala at its 115 kt peak west of Hawaii: a small eye about 33 km across in a compact ring of cloud tops no colder than -74 °C.",
+    "description": "Hurricane Lala (2026) at 115 knots on 2026-08-19T05:20Z",
     "coldest_c": -73.2,
     "warmest_c": 24.1,
-    "credit": "NOAA GOES-18 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/231/05/OR_ABI-L1b-RadF-M6C13_G18_s20262310520205_e20262310529525_c20262310529547.nc"
   },
   {
@@ -278,10 +278,10 @@
     "band_words": "10.3 µm infrared (ABI band 13)",
     "obs_time_utc": "2026-09-30T00:00:20.400000+00:00",
     "pixel_km": 2.918,
-    "description": "Tropical Storm Rachel at 60 kt, six hours before it became a hurricane: a big central dense overcast with tops below -90 °C, the center near its northern edge.",
+    "description": "Tropical Storm Rachel (2026) at 60 knots on 2026-09-30T00:00Z",
     "coldest_c": -92.5,
     "warmest_c": 25.1,
-    "credit": "NOAA GOES-18 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/273/00/OR_ABI-L1b-RadF-M6C13_G18_s20262730000204_e20262730009524_c20262730009579.nc"
   },
   {
@@ -297,10 +297,10 @@
     "band_words": "10.7 µm infrared (GOES-12 Imager channel 4)",
     "obs_time_utc": "2005-08-28T17:45:00.000013+00:00",
     "pixel_km": 4.453,
-    "description": "Katrina at its 150 kt peak in the Gulf, the day before landfall in Louisiana: a clear eye in a wide ring of cold cloud, from GOES-12 on NCEI's 4 km GridSat-GOES grid.",
+    "description": "Hurricane Katrina (2005) at 150 knots on 2005-08-28T17:45Z",
     "coldest_c": -77.4,
     "warmest_c": 27.7,
-    "credit": "NOAA GOES-12 Imager, via NOAA NCEI GridSat-GOES (no account needed)",
+    "credit": "Data: GOES-12 via NOAA NCEI GridSat-GOES",
     "source": "https://www.ncei.noaa.gov/data/gridsat-goes/access/goes/2005/08/GridSat-GOES.goes12.2005.08.28.1800.v01.nc (channel ch4)"
   },
   {
@@ -316,10 +316,10 @@
     "band_words": "10.3 µm infrared (ABI band 13)",
     "obs_time_utc": "2026-07-17T03:40:22.800000+00:00",
     "pixel_km": 2.369,
-    "description": "Tropical Storm Elida at 55 kt, ragged and sheared: its center sits under ragged cloud between bursts of thunderstorms, the biggest, with tops near -88 °C, about 300 km to the south-southwest.",
+    "description": "Tropical Storm Elida (2026) at 55 knots on 2026-07-17T03:40Z",
     "coldest_c": -87.6,
     "warmest_c": 22.1,
-    "credit": "NOAA GOES-18 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/198/03/OR_ABI-L1b-RadF-M6C13_G18_s20261980340228_e20261980349548_c20261980349573.nc"
   },
   {
@@ -335,10 +335,10 @@
     "band_words": "10.3 µm infrared (ABI band 13)",
     "obs_time_utc": "2026-08-31T18:00:21.600000+00:00",
     "pixel_km": 2.877,
-    "description": "Tropical Depression Five off Louisiana at 30 kt, six hours before it became Tropical Storm Edouard: a loose curl of showers and a few small thunderstorms near the center, with no organized core.",
+    "description": "Tropical Depression Five (2026) at 30 knots on 2026-08-31T18:00Z",
     "coldest_c": -72.2,
     "warmest_c": 38.4,
-    "credit": "NOAA GOES-19 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-19, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes19/ABI-L1b-RadF/2026/243/18/OR_ABI-L1b-RadF-M6C13_G19_s20262431800216_e20262431809536_c20262431809572.nc"
   },
   {
@@ -354,10 +354,10 @@
     "band_words": "10.3 µm infrared (ABI band 13)",
     "obs_time_utc": "2026-07-29T20:30:22.300000+00:00",
     "pixel_km": 2.69,
-    "description": "What was left of Fausto north of Hawaii, hours after it became a 30 kt remnant low: a bare swirl of warm low cloud with no thunderstorms at its center.",
+    "description": "Remnant Low Fausto (2026) at 30 knots on 2026-07-29T20:30Z",
     "coldest_c": -56.5,
     "warmest_c": 40.3,
-    "credit": "NOAA GOES-18 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/210/20/OR_ABI-L1b-RadF-M6C13_G18_s20262102030223_e20262102039542_c20262102039586.nc"
   },
   {
@@ -373,10 +373,10 @@
     "band_words": "6.2 µm upper-level water vapor (ABI band 8)",
     "obs_time_utc": "2025-10-28T12:00:20.500000+00:00",
     "pixel_km": 2.338,
-    "description": "Melissa at her 165 kt peak in upper-level water vapor: the eye in a broad moist shield, with outflow cirrus fanning out to its north and west.",
+    "description": "Hurricane Melissa (2025) at 165 knots on 2025-10-28T12:00Z",
     "coldest_c": -89.2,
     "warmest_c": -13.3,
-    "credit": "NOAA GOES-19 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-19, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes19/ABI-L1b-RadF/2025/301/12/OR_ABI-L1b-RadF-M6C08_G19_s20253011200205_e20253011209513_c20253011209565.nc"
   },
   {
@@ -392,10 +392,10 @@
     "band_words": "6.9 µm mid-level water vapor (ABI band 9)",
     "obs_time_utc": "2024-10-09T12:00:20.800000+00:00",
     "pixel_km": 2.646,
-    "description": "Milton at 135 kt, about 12 hours before landfall in Florida: dry air to its west and south wrapping in toward the core.",
+    "description": "Hurricane Milton (2024) at 135 knots on 2024-10-09T12:00Z",
     "coldest_c": -82.7,
     "warmest_c": -4.0,
-    "credit": "NOAA GOES-16 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-16, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes16/ABI-L1b-RadF/2024/283/12/OR_ABI-L1b-RadF-M6C09_G16_s20242831200208_e20242831209522_c20242831209574.nc"
   },
   {
@@ -411,10 +411,10 @@
     "band_words": "6.9 µm mid-level water vapor (ABI band 9)",
     "obs_time_utc": "2026-07-26T18:40:21.700000+00:00",
     "pixel_km": 2.71,
-    "description": "Genevieve at 115 kt and strengthening fast, in mid-level water vapor: a small eye, moist spiral bands and drier air to the northwest.",
+    "description": "Hurricane Genevieve (2026) at 115 knots on 2026-07-26T18:40Z",
     "coldest_c": -78.1,
     "warmest_c": -21.2,
-    "credit": "NOAA GOES-18 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/207/18/OR_ABI-L1b-RadF-M6C09_G18_s20262071840217_e20262071849531_c20262071849555.nc"
   },
   {
@@ -430,10 +430,10 @@
     "band_words": "7.3 µm lower-level water vapor (ABI band 10)",
     "obs_time_utc": "2026-09-02T12:00:20.700000+00:00",
     "pixel_km": 2.293,
-    "description": "Lowell at 130 kt in lower-level water vapor: a compact moist core with an eye, surrounded by very dry air.",
+    "description": "Hurricane Lowell (2026) at 130 knots on 2026-09-02T12:00Z",
     "coldest_c": -80.2,
     "warmest_c": -3.1,
-    "credit": "NOAA GOES-18 ABI, from NOAA Open Data Dissemination (no account needed)",
+    "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
     "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/245/12/OR_ABI-L1b-RadF-M6C10_G18_s20262451200207_e20262451209527_c20262451209553.nc"
   },
   {
@@ -449,10 +449,10 @@
     "band_words": "6.5 µm water vapor (GOES-12 Imager channel 3)",
     "obs_time_utc": "2005-08-28T17:45:00.000013+00:00",
     "pixel_km": 4.453,
-    "description": "Katrina at her 150 kt peak in water vapor, from GOES-12 on NCEI's 4 km GridSat-GOES grid: the eye in a broad moist shield, dry air to the west.",
+    "description": "Hurricane Katrina (2005) at 150 knots on 2005-08-28T17:45Z",
     "coldest_c": -75.9,
     "warmest_c": -18.2,
-    "credit": "NOAA GOES-12 Imager, via NOAA NCEI GridSat-GOES (no account needed)",
+    "credit": "Data: GOES-12 via NOAA NCEI GridSat-GOES",
     "source": "https://www.ncei.noaa.gov/data/gridsat-goes/access/goes/2005/08/GridSat-GOES.goes12.2005.08.28.1800.v01.nc (channel ch3)"
   }
 ]

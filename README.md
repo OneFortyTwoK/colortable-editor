@@ -94,33 +94,33 @@ The program comes with 24 real satellite pictures of storms to try your tables o
 
 **Infrared:**
 
-- **Melissa, 2025** (Atlantic; GOES-19 ABI, 2.3 km pixels): Melissa at her 165 kt peak, five hours before landfall in Jamaica: a clear, round eye inside a ring of -80 °C cloud tops.
-- **Polo, 2026** (East Pacific; NOAA-20 VIIRS, 375 m pixels): Polo at its 155 kt peak, seen almost straight down by NOAA-20: a warm eye near +23 °C in a solid ring of -70 to -80 °C cloud, at 375 m.
-- **Milton, 2024** (Atlantic; GOES-16 ABI, 2.6 km pixels): Milton at its 155 kt peak in the Gulf: a pinhole eye only about 12 km across, a few pixels wide, inside -80 °C tops.
-- **Nolo, 2026** (Central Pacific; NOAA-20 VIIRS, 375 m pixels): Nolo at its 135 kt peak southwest of Hawaii, at night: a wide, round eye about 50 km across, with eyewall tops as cold as -89 °C, at 375 m.
-- **Milton, 2024** (Atlantic; NOAA-21 VIIRS, 375 m pixels): Milton near its 155 kt peak in the Gulf, seen by NOAA-21 at 375 m: a pinhole eye about 14 km across, warmer than +20 °C, inside a ring of -80 °C tops.
-- **Polo, 2026** (East Pacific; NOAA-21 VIIRS, 375 m pixels): Polo at night, strengthening fast from 120 to 140 kt twelve hours before the daytime Polo sample: a small eye about 12 km across in a ring of -78 °C tops, at 375 m.
-- **Haiyan, 2013** (West Pacific; S-NPP VIIRS, 375 m pixels): Haiyan near its 170 kt peak, four hours before landfall in the Philippines: 92% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a clear eye; the swath ends in the west of the box.
-- **Haiyan, 2013** (West Pacific; Terra MODIS, 1.0 km pixels): Haiyan at 165 kt, seven hours before landfall in the Philippines, at 1 km: 92% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a clear eye.
-- **Yutu, 2018** (West Pacific; GCOM-C SGLI, 250 m pixels): Yutu at its 155 kt peak, hours before its eye crossed Tinian, at 250 m: a clear eye about 40 km across in -82 °C tops; SGLI's scenes leave the box's south and east edges empty.
-- **Nepartak, 2016** (West Pacific; Aqua MODIS, 1.0 km pixels): Nepartak near its 150 kt peak southeast of Taiwan, at 1 km: a small, clear eye about 17 km across and warmer than +28 °C, in a ring of -80 °C tops.
-- **Mocha, 2023** (North Indian Ocean; NOAA-20 VIIRS, 375 m pixels): Mocha at 130 kt and strengthening in the Bay of Bengal, half a day before landfall in Myanmar: 89% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a small cloud-filled eye.
-- **Narelle, 2026** (South Pacific; NOAA-21 VIIRS, 375 m pixels): Narelle at about 95 kt and strengthening fast in the Coral Sea: 69% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), in a compact central dense overcast with tops to -98 °C.
-- **Genevieve, 2026** (East Pacific; GOES-18 ABI, 2.6 km pixels): Genevieve near its 140 kt peak: a clear eye about 35 km across inside a thick ring of -70 to -76 °C cloud tops.
-- **Lala, 2026** (Central Pacific; GOES-18 ABI, 3.0 km pixels): Lala at its 115 kt peak west of Hawaii: a small eye about 33 km across in a compact ring of cloud tops no colder than -74 °C.
-- **Rachel, 2026** (East Pacific; GOES-18 ABI, 2.9 km pixels): Tropical Storm Rachel at 60 kt, six hours before it became a hurricane: a big central dense overcast with tops below -90 °C, the center near its northern edge.
-- **Katrina, 2005** (Atlantic; GOES-12 Imager, 4.5 km pixels): Katrina at its 150 kt peak in the Gulf, the day before landfall in Louisiana: a clear eye in a wide ring of cold cloud, from GOES-12 on NCEI's 4 km GridSat-GOES grid.
-- **Elida, 2026** (East Pacific; GOES-18 ABI, 2.4 km pixels): Tropical Storm Elida at 55 kt, ragged and sheared: its center sits under ragged cloud between bursts of thunderstorms, the biggest, with tops near -88 °C, about 300 km to the south-southwest.
-- **Five (later Edouard), 2026** (Atlantic; GOES-19 ABI, 2.9 km pixels): Tropical Depression Five off Louisiana at 30 kt, six hours before it became Tropical Storm Edouard: a loose curl of showers and a few small thunderstorms near the center, with no organized core.
-- **Fausto, 2026** (Central Pacific; GOES-18 ABI, 2.7 km pixels): What was left of Fausto north of Hawaii, hours after it became a 30 kt remnant low: a bare swirl of warm low cloud with no thunderstorms at its center.
+- **Hurricane Melissa (2025) at 165 knots on 2025-10-28T12:10Z** (Atlantic; GOES-19 ABI, 2.3 km pixels)
+- **Hurricane Polo (2026) at 150 knots on 2026-09-22T20:07Z** (East Pacific; NOAA-20 VIIRS, 375 m pixels)
+- **Hurricane Milton (2024) at 155 knots on 2024-10-07T20:00Z** (Atlantic; GOES-16 ABI, 2.6 km pixels)
+- **Hurricane Nolo (2026) at 135 knots on 2026-09-28T12:09Z** (Central Pacific; NOAA-20 VIIRS, 375 m pixels)
+- **Hurricane Milton (2024) at 155 knots on 2024-10-07T19:19Z** (Atlantic; NOAA-21 VIIRS, 375 m pixels)
+- **Hurricane Polo (2026) at 125 knots on 2026-09-22T08:03Z** (East Pacific; NOAA-21 VIIRS, 375 m pixels)
+- **Super Typhoon Haiyan (2013) at 170 knots on 2013-11-07T16:19Z** (West Pacific; S-NPP VIIRS, 375 m pixels)
+- **Super Typhoon Haiyan (2013) at 165 knots on 2013-11-07T13:49Z** (West Pacific; Terra MODIS, 1.0 km pixels)
+- **Super Typhoon Yutu (2018) at 155 knots on 2018-10-24T12:31Z** (West Pacific; GCOM-C SGLI, 250 m pixels)
+- **Super Typhoon Nepartak (2016) at 150 knots on 2016-07-06T04:50Z** (West Pacific; Aqua MODIS, 1.0 km pixels)
+- **Cyclone Mocha (2023) at 135 knots on 2023-05-13T19:52Z** (North Indian Ocean; NOAA-20 VIIRS, 375 m pixels)
+- **Cyclone Narelle (2026) at 95 knots on 2026-03-18T15:22Z** (South Pacific; NOAA-21 VIIRS, 375 m pixels)
+- **Hurricane Genevieve (2026) at 140 knots on 2026-07-27T08:40Z** (East Pacific; GOES-18 ABI, 2.6 km pixels)
+- **Hurricane Lala (2026) at 115 knots on 2026-08-19T05:20Z** (Central Pacific; GOES-18 ABI, 3.0 km pixels)
+- **Tropical Storm Rachel (2026) at 60 knots on 2026-09-30T00:00Z** (East Pacific; GOES-18 ABI, 2.9 km pixels)
+- **Hurricane Katrina (2005) at 150 knots on 2005-08-28T17:45Z** (Atlantic; GOES-12 Imager, 4.5 km pixels)
+- **Tropical Storm Elida (2026) at 55 knots on 2026-07-17T03:40Z** (East Pacific; GOES-18 ABI, 2.4 km pixels)
+- **Tropical Depression Five (2026) at 30 knots on 2026-08-31T18:00Z** (Atlantic; GOES-19 ABI, 2.9 km pixels)
+- **Remnant Low Fausto (2026) at 30 knots on 2026-07-29T20:30Z** (Central Pacific; GOES-18 ABI, 2.7 km pixels)
 
 **Water vapor:**
 
-- **Melissa, 2025** (Atlantic; GOES-19 ABI, 2.3 km pixels): Melissa at her 165 kt peak in upper-level water vapor: the eye in a broad moist shield, with outflow cirrus fanning out to its north and west.
-- **Milton, 2024** (Atlantic; GOES-16 ABI, 2.6 km pixels): Milton at 135 kt, about 12 hours before landfall in Florida: dry air to its west and south wrapping in toward the core.
-- **Genevieve, 2026** (East Pacific; GOES-18 ABI, 2.7 km pixels): Genevieve at 115 kt and strengthening fast, in mid-level water vapor: a small eye, moist spiral bands and drier air to the northwest.
-- **Lowell, 2026** (Central Pacific; GOES-18 ABI, 2.3 km pixels): Lowell at 130 kt in lower-level water vapor: a compact moist core with an eye, surrounded by very dry air.
-- **Katrina, 2005** (Atlantic; GOES-12 Imager, 4.5 km pixels): Katrina at her 150 kt peak in water vapor, from GOES-12 on NCEI's 4 km GridSat-GOES grid: the eye in a broad moist shield, dry air to the west.
+- **Hurricane Melissa (2025) at 165 knots on 2025-10-28T12:00Z** (Atlantic; GOES-19 ABI, 2.3 km pixels)
+- **Hurricane Milton (2024) at 135 knots on 2024-10-09T12:00Z** (Atlantic; GOES-16 ABI, 2.6 km pixels)
+- **Hurricane Genevieve (2026) at 115 knots on 2026-07-26T18:40Z** (East Pacific; GOES-18 ABI, 2.7 km pixels)
+- **Hurricane Lowell (2026) at 130 knots on 2026-09-02T12:00Z** (Central Pacific; GOES-18 ABI, 2.3 km pixels)
+- **Hurricane Katrina (2005) at 150 knots on 2005-08-28T17:45Z** (Atlantic; GOES-12 Imager, 4.5 km pixels)
 
 Sample pictures: NOAA GOES, and NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data Dissemination; GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; NASA Terra and Aqua MODIS and Suomi NPP VIIRS (Haiyan 2013) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from JAXA G-Portal. Original data for this value added data product was provided by Japan Aerospace Exploration Agency.
 

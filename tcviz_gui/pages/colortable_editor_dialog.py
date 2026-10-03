@@ -1117,7 +1117,7 @@ class ColortableEditorDialog(QDialog):
                              "the colors are exact.")
             if source.water_vapor:
                 notes.append("On a water-vapor picture every table is drawn from 0 to -90 °C.")
-            self.picture_note.setText(" ".join(notes))
+            self.picture_note.setText("\n".join(notes))           # one line each, under the title
         self._fill_picture_combo()
         self._schedule_refresh()
 

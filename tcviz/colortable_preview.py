@@ -444,11 +444,6 @@ def _sample_label(raw):
     return " · ".join(p for p in (storm, taken) if p)
 
 
-def _sentence(text):
-    text = text.strip()
-    return text if text.endswith((".", "!", "?")) else f"{text}."
-
-
 def _when_words(when):
     try:
         return datetime.datetime.fromisoformat(str(when).replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M UTC")
@@ -482,9 +477,10 @@ def load_bundled(sample, max_pixels=MAX_PIXELS):
     band = str(raw.get("band") or "")
     if picture_kind(band, units) != sample.kind:
         band = "WV" if sample.kind == "wv" else "IR"
-    # each its own sentence: a credit like "... from NOAA Open Data Dissemination (no account
-    # needed)" has no full stop, and the editor puts more after it
-    note = " ".join(_sentence(p) for p in (sample.description, sample.credit) if p.strip()) or None
+    # the title ("Hurricane Melissa (2025) at 165 knots on 2025-10-28T12:10Z") and the data
+    # source each on a line of its own, as the author asked (2026-10-03); neither ends in a
+    # full stop, so they are not run together into one sentence
+    note = "\n".join(p.strip() for p in (sample.description, sample.credit) if p.strip()) or None
     return PreviewSource(values, band=band, label=sample.label, max_pixels=max_pixels, units=units, note=note)
 
 

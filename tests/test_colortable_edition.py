@@ -349,7 +349,7 @@ def test_the_picture_box_lists_the_bundled_samples(qapp, editor_edition, monkeyp
     assert items == ["Melissa 2025 · GOES-19 IR", "Melissa 2025 · GOES-19 water vapor"]
     assert d.picture_combo.currentData() == "bundled:melissa_ir"
     assert d.picture_combo.itemData(0, 3) == SAMPLES[0]["description"]          # Qt.ToolTipRole
-    assert d.picture_note.text().startswith(SAMPLES[0]["description"] + " Picture: NOAA GOES-19.")
+    assert d.picture_note.text().startswith(SAMPLES[0]["description"] + "\nPicture: NOAA GOES-19.")
     assert d._preview.full_shape == (40, 40) and not d._preview.water_vapor
     d._on_picture_combo(1)
     assert d.picture_combo.currentData() == "bundled:melissa_wv" and d._preview.water_vapor
