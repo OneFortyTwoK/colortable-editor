@@ -934,7 +934,11 @@ def test_the_windows_open_as_they_were_left_and_view_resets_them(qapp, editor_ed
     window.close()                      # as it first opens: nothing to keep
     assert not (folder / "layout.json").exists()
     d = _shown_editor()
-    assert not d.colors_folded()
+    # as it first opens: the color panel shown -- unless the laptop's screen is too narrow
+    # for the whole window, as bigger fonts make it (then it opens folded, to fit)
+    folded = d.colors_folded()
+    d.fold_colors(False)
+    assert folded == (d.minimumSizeHint().width() > 1366 - window_layout.SCREEN_MARGIN[0])
     d.hide()
     d.deleteLater()
     # tcviz's own places were never touched

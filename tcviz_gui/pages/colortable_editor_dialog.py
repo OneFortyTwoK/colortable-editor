@@ -711,6 +711,20 @@ class ColortableEditorDialog(QDialog):
         sizes = window_layout.fit_sizes(saved, least, sum(splitter.sizes()), collapsible=(0,))
         if sizes is not None:
             splitter.setSizes(sizes)
+        # saved on a big screen or never: either way it must fit this one
+        self._fit_narrow_screen()
+
+    def _fit_narrow_screen(self):
+        """On a screen too narrow for the whole window -- a 1080p laptop at 150% scaling has
+        1280 px, the window with its color panel at least 1296 -- open with the color panel
+        folded away (its handle's arrow brings it back), at a size that fits."""
+        room = colortable_widgets.screen_room(self)
+        if not room or self.minimumSizeHint().width() <= room[0] - window_layout.SCREEN_MARGIN[0]:
+            return
+        self.fold_colors(True)
+        # once shown: resized while it is being shown, the window's first layout pass sizes
+        # it back up to the least it had with the panel
+        QTimer.singleShot(0, lambda: self.resize(*_default_size(room)))
 
     def reset_layout(self):
         """Reset layout (in the "?"): forget the remembered layouts -- layout.json goes -- and

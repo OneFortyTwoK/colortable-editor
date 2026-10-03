@@ -1738,6 +1738,21 @@ class PanelSplitter(QSplitter):
         if respace:
             self.setSizes(sizes)
 
+    def minimumSizeHint(self):
+        # A panel folded away takes no room, so the window around may be narrower by its
+        # width. QSplitter counts every panel's least width, folded or not: the editor could
+        # never be narrower than 1296 px, wider than a 1080p laptop at 150% scaling has (1280)
+        # -- folding the color panel freed nothing (2026-10-03).
+        hint = super().minimumSizeHint()
+        sizes = self.sizes()
+        if any(sizes):
+            for i in range(self.count()):
+                if self.isCollapsible(i) and sizes[i] == 0:
+                    panel = self.widget(i)
+                    freed = max(panel.minimumWidth(), panel.minimumSizeHint().width())
+                    hint.setWidth(max(0, hint.width() - freed))
+        return hint
+
     def folded(self, index):
         """Whether panel `index` is folded away (never, before the splitter is laid out)."""
         sizes = self.sizes()
@@ -1768,6 +1783,8 @@ class PanelSplitter(QSplitter):
     def _moved(self):
         for i in range(1, self.count()):
             self.handle(i).update()
+        # folded or brought back: the window around is told its new least width
+        self.updateGeometry()
         self.changed.emit()
 
 
