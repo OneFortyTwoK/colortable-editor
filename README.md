@@ -90,7 +90,7 @@ To keep your tables somewhere else (on a USB stick, say), set the environment va
 
 ## The sample storms
 
-The program comes with 16 real satellite pictures of storms to try your tables on, each the 13-degree box around the storm. Choose one in the editor's **Picture** box.
+The program comes with 24 real satellite pictures of storms to try your tables on, each the 13-degree box around the storm. Choose one in the editor's **Picture** box.
 
 **Infrared:**
 
@@ -98,6 +98,14 @@ The program comes with 16 real satellite pictures of storms to try your tables o
 - **Polo, 2026** (East Pacific; NOAA-20 VIIRS, 375 m pixels): Polo at its 155 kt peak, seen almost straight down by NOAA-20: a warm eye near +23 °C in a solid ring of -70 to -80 °C cloud, at 375 m.
 - **Milton, 2024** (Atlantic; GOES-16 ABI, 2.6 km pixels): Milton at its 155 kt peak in the Gulf: a pinhole eye only about 12 km across, a few pixels wide, inside -80 °C tops.
 - **Nolo, 2026** (Central Pacific; NOAA-20 VIIRS, 375 m pixels): Nolo at its 135 kt peak southwest of Hawaii, at night: a wide, round eye about 50 km across, with eyewall tops as cold as -89 °C, at 375 m.
+- **Milton, 2024** (Atlantic; NOAA-21 VIIRS, 375 m pixels): Milton near its 155 kt peak in the Gulf, seen by NOAA-21 at 375 m: a pinhole eye about 14 km across, warmer than +20 °C, inside a ring of -80 °C tops.
+- **Polo, 2026** (East Pacific; NOAA-21 VIIRS, 375 m pixels): Polo at night, strengthening fast from 120 to 140 kt twelve hours before the daytime Polo sample: a small eye about 12 km across in a ring of -78 °C tops, at 375 m.
+- **Haiyan, 2013** (West Pacific; S-NPP VIIRS, 375 m pixels): Haiyan near its 170 kt peak, four hours before landfall in the Philippines: 92% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a clear eye; the swath ends in the west of the box.
+- **Haiyan, 2013** (West Pacific; Terra MODIS, 1.0 km pixels): Haiyan at 165 kt, seven hours before landfall in the Philippines, at 1 km: 92% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a clear eye.
+- **Yutu, 2018** (West Pacific; GCOM-C SGLI, 250 m pixels): Yutu at its 155 kt peak, hours before its eye crossed Tinian, at 250 m: a clear eye about 40 km across in -82 °C tops; SGLI's scenes leave the box's south and east edges empty.
+- **Nepartak, 2016** (West Pacific; Aqua MODIS, 1.0 km pixels): Nepartak near its 150 kt peak southeast of Taiwan, at 1 km: a small, clear eye about 17 km across and warmer than +28 °C, in a ring of -80 °C tops.
+- **Mocha, 2023** (North Indian Ocean; NOAA-20 VIIRS, 375 m pixels): Mocha at 130 kt and strengthening in the Bay of Bengal, half a day before landfall in Myanmar: 89% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), around a small cloud-filled eye.
+- **Narelle, 2026** (South Pacific; NOAA-21 VIIRS, 375 m pixels): Narelle at about 95 kt and strengthening fast in the Coral Sea: 69% of the cloud within 150 km of the center is at or below -81 °C (Dvorak's CDG), in a compact central dense overcast with tops to -98 °C.
 - **Genevieve, 2026** (East Pacific; GOES-18 ABI, 2.6 km pixels): Genevieve near its 140 kt peak: a clear eye about 35 km across inside a thick ring of -70 to -76 °C cloud tops.
 - **Lala, 2026** (Central Pacific; GOES-18 ABI, 3.0 km pixels): Lala at its 115 kt peak west of Hawaii: a small eye about 33 km across in a compact ring of cloud tops no colder than -74 °C.
 - **Rachel, 2026** (East Pacific; GOES-18 ABI, 2.9 km pixels): Tropical Storm Rachel at 60 kt, six hours before it became a hurricane: a big central dense overcast with tops below -90 °C, the center near its northern edge.
@@ -114,7 +122,7 @@ The program comes with 16 real satellite pictures of storms to try your tables o
 - **Lowell, 2026** (Central Pacific; GOES-18 ABI, 2.3 km pixels): Lowell at 130 kt in lower-level water vapor: a compact moist core with an eye, surrounded by very dry air.
 - **Katrina, 2005** (Atlantic; GOES-12 Imager, 4.5 km pixels): Katrina at her 150 kt peak in water vapor, from GOES-12 on NCEI's 4 km GridSat-GOES grid: the eye in a broad moist shield, dry air to the west.
 
-Sample pictures: NOAA GOES and VIIRS, from NOAA Open Data Dissemination; Katrina 2005 from NOAA NCEI's GridSat-GOES.
+Sample pictures: NOAA GOES, and NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data Dissemination; GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; NASA Terra and Aqua MODIS and Suomi NPP VIIRS (Haiyan 2013) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from JAXA G-Portal. Original data for this value added data product was provided by Japan Aerospace Exploration Agency.
 
 ## Build it yourself
 

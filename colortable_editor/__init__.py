@@ -14,7 +14,12 @@ __version__ = "1.0.0"
 APP_NAME = "Colortable Editor"
 AUTHOR = "OneFortyTwoK"
 LICENSE = "MIT License"
-# Katrina 2005's two samples are not from Open Data Dissemination but from NCEI's GridSat-GOES
-# (vendor/editor_samples/samples.json), so the credit says so.
-SAMPLES_CREDIT = ("Sample pictures: NOAA GOES and VIIRS, from NOAA Open Data Dissemination; "
-                  "Katrina 2005 from NOAA NCEI's GridSat-GOES")
+# Every sample's source, as samples.json credits each one: NOAA's open buckets for GOES and
+# most VIIRS, NCEI's GridSat-GOES for Katrina 2005, NASA LAADS for the MODIS passes and Haiyan
+# 2013's VIIRS, and JAXA G-Portal for Yutu 2018's SGLI -- whose terms (G-Portal terms of use,
+# Article 7(2)) ask for that last sentence word for word.
+SAMPLES_CREDIT = ("Sample pictures: NOAA GOES, and NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data "
+                  "Dissemination; GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; NASA Terra and Aqua "
+                  "MODIS and Suomi NPP VIIRS (Haiyan 2013) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from "
+                  "JAXA G-Portal. Original data for this value added data product was provided by Japan "
+                  "Aerospace Exploration Agency")

@@ -507,8 +507,11 @@ def test_about_says_who_made_what(qapp, editor_edition):
     from colortable_editor import about
     from colortable_editor.main_window import MainWindow
     lines = about.about_lines()
-    credit = ("Sample pictures: NOAA GOES and VIIRS, from NOAA Open Data Dissemination; "
-              "Katrina 2005 from NOAA NCEI's GridSat-GOES")
+    credit = ("Sample pictures: NOAA GOES, and NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data "
+              "Dissemination; GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; NASA Terra and Aqua "
+              "MODIS and Suomi NPP VIIRS (Haiyan 2013) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from "
+              "JAXA G-Portal. Original data for this value added data product was provided by Japan "
+              "Aerospace Exploration Agency")
     assert lines == ["Colortable Editor 1.0.0", "by OneFortyTwoK", "MIT License", "", about.BLURB, "", credit]
 
     window = MainWindow()
