@@ -1,0 +1,8 @@
+* text=auto
+# shell scripts keep Unix line ends even in a Windows checkout
+*.sh text eol=lf
+packaging/AppRun text eol=lf
+*.npz binary
+*.ttf binary
+*.png binary
+*.ico binary

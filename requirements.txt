@@ -1,0 +1,17 @@
+# Exactly the versions Colortable Editor is built and tested with (Python 3.12 and newer).
+# pip install -r requirements.txt
+PySide6-Essentials==6.11.2
+shiboken6==6.11.2
+numpy==2.5.3
+matplotlib==3.11.2
+contourpy==1.4.0
+cycler==0.12.1
+fonttools==4.66.0
+kiwisolver==1.5.1
+packaging==26.3
+Pillow==12.3.0
+pyparsing==3.3.3
+python-dateutil==2.9.0.post0
+six==1.17.0
+platformdirs==4.12.1
+defusedxml==0.7.1

@@ -1,0 +1,201 @@
+{
+ "about": "Colortable Editor's built-in color tables -- do not edit by hand. Each is a color table entry as the editor stores one; `check` is the SHA-256 of its rows as colorize.table makes them, and its range in Kelvin.",
+ "tables": [
+  {
+   "name": "grayscale",
+   "stops": [
+    [0.0, "#000000"],
+    [1.0, "#ffffff"]
+   ],
+   "vmin_c": -100.0,
+   "vmax_c": 50.0,
+   "description": "",
+   "category": "Temperature (IR)",
+   "reversed": true,
+   "units": "C",
+   "vmin": -100.0,
+   "vmax": 50.0,
+   "levels": 256,
+   "hidden": false,
+   "check": {
+    "table_sha256": "9f0857726998b3175ae0a9003d4239486c9510a746ee17a015426937dd4a2c21",
+    "levels": 256,
+    "vmax_k": 323.15,
+    "vmin_k": 173.14999999999998
+   }
+  },
+  {
+   "name": "ott2",
+   "stops": [
+    [0.0, "#000000"],
+    [0.1, "#000000"],
+    [0.4666666666666667, "#c8c8c8"],
+    [0.4666666666666667, "#00fafa"],
+    [0.5333333333333333, "#000064"],
+    [0.6, "#00fa00"],
+    [0.6666666666666666, "#fafa00"],
+    [0.7333333333333333, "#fa0000"],
+    [0.8, "#000000"],
+    [0.8666666666666667, "#e1e1e1"],
+    [0.8666666666666667, "#fa7daf"],
+    [0.9333333333333333, "#640064"],
+    [0.9333333333333333, "#fafa00"],
+    [1.0, "#000000"]
+   ],
+   "vmin_c": -100.0,
+   "vmax_c": 50.0,
+   "description": "",
+   "category": "Temperature (IR)",
+   "reversed": true,
+   "units": "C",
+   "vmin": -100.0,
+   "vmax": 50.0,
+   "levels": 256,
+   "hidden": false,
+   "check": {
+    "table_sha256": "3045715789f5bbd643a64cff24c58bb1e0ffad111ea8fac99db7c05a6ebd4afb",
+    "levels": 256,
+    "vmax_k": 323.15,
+    "vmin_k": 173.14999999999998
+   }
+  },
+  {
+   "name": "bd05",
+   "stops": [
+    [0.0, "#000000"],
+    [0.175, "#ffffff"],
+    [0.175, "#6d6d6d"],
+    [0.5, "#cacaca"],
+    [0.5, "#3c3c3c"],
+    [0.5916666666666667, "#3c3c3c"],
+    [0.5916666666666667, "#6e6e6e"],
+    [0.6916666666666667, "#6e6e6e"],
+    [0.6916666666666667, "#a0a0a0"],
+    [0.775, "#a0a0a0"],
+    [0.775, "#000000"],
+    [0.825, "#000000"],
+    [0.825, "#ffffff"],
+    [0.875, "#ffffff"],
+    [0.875, "#878787"],
+    [0.9166666666666666, "#878787"],
+    [0.9166666666666666, "#555555"],
+    [1.0, "#555555"]
+   ],
+   "vmin_c": -90.0,
+   "vmax_c": 30.0,
+   "description": "",
+   "category": "Temperature (IR)",
+   "reversed": true,
+   "units": "C",
+   "vmin": -90.0,
+   "vmax": 30.0,
+   "levels": 256,
+   "hidden": false,
+   "check": {
+    "table_sha256": "ca6387b5113717b2b42b8a1e77e17fa9bef5f2d27ea2b7ce2880d2ab5eb71409",
+    "levels": 256,
+    "vmax_k": 303.15,
+    "vmin_k": 183.14999999999998
+   }
+  },
+  {
+   "name": "crys10v4",
+   "stops": [
+    [0.0, "#000000"],
+    [0.13333333333333333, "#1a1a1a"],
+    [0.28, "#414754"],
+    [0.4, "#ffffff"],
+    [0.43333333333333335, "#33ffff"],
+    [0.4866666666666667, "#010071"],
+    [0.6333333333333333, "#00fe24"],
+    [0.68, "#ffff33"],
+    [0.7133333333333334, "#ff6333"],
+    [0.7733333333333333, "#d22d2d"],
+    [0.7933333333333333, "#b30000"],
+    [0.8333333333333334, "#cc0c89"],
+    [0.8666666666666667, "#5b3797"],
+    [0.8866666666666667, "#130a34"],
+    [0.9533333333333334, "#aedbfa"],
+    [1.0, "#ffffff"]
+   ],
+   "vmin_c": -100.0,
+   "vmax_c": 50.0,
+   "description": "",
+   "category": "Temperature (IR)",
+   "reversed": true,
+   "units": "C",
+   "vmin": -100.0,
+   "vmax": 50.0,
+   "levels": 256,
+   "hidden": false,
+   "check": {
+    "table_sha256": "2b821a6c465dba3bc0f0b9800f8a8b19fc481e6ad33dee00e8dff225b4104ad0",
+    "levels": 256,
+    "vmax_k": 323.15,
+    "vmin_k": 173.14999999999998
+   }
+  },
+  {
+   "name": "irg",
+   "stops": [
+    [0.0, "#b55555"],
+    [0.06666666666666667, "#b58555"],
+    [0.2, "#090926"],
+    [0.4, "#ffffff"],
+    [0.5333333333333333, "#4c8032"],
+    [0.6, "#ffff29"],
+    [0.7, "#ff2929"],
+    [0.8, "#000000"],
+    [0.8666666666666667, "#e6dada"],
+    [0.9333333333333333, "#261940"],
+    [0.94, "#990f97"],
+    [1.0, "#e6dada"]
+   ],
+   "vmin_c": -100.0,
+   "vmax_c": 50.0,
+   "description": "",
+   "category": "Temperature (IR)",
+   "reversed": true,
+   "units": "C",
+   "vmin": -100.0,
+   "vmax": 50.0,
+   "levels": 256,
+   "hidden": false,
+   "check": {
+    "table_sha256": "f199a8fb901549a393c3dc9b20760770ab76d21ef0b5d7cec6fb2c502b11d4c2",
+    "levels": 256,
+    "vmax_k": 323.15,
+    "vmin_k": 173.14999999999998
+   }
+  },
+  {
+   "name": "wv",
+   "stops": [
+    [0.0, "#696563"],
+    [0.1111111111111111, "#1f1e1c"],
+    [0.2222222222222222, "#a85432"],
+    [0.3333333333333333, "#e3e1de"],
+    [0.5, "#465185"],
+    [0.6666666666666666, "#89d9a7"],
+    [0.8888888888888888, "#30453d"],
+    [1.0, "#b3afaf"]
+   ],
+   "vmin_c": -90.0,
+   "vmax_c": 0.0,
+   "description": "",
+   "category": "Water Vapor",
+   "reversed": true,
+   "units": "C",
+   "vmin": -90.0,
+   "vmax": 0.0,
+   "levels": 256,
+   "hidden": false,
+   "check": {
+    "table_sha256": "ab7253c815338268d3bb702a769b428f2a1d9faf19e213d031863346952bd15a",
+    "levels": 256,
+    "vmax_k": 273.15,
+    "vmin_k": 183.14999999999998
+   }
+  }
+ ]
+}

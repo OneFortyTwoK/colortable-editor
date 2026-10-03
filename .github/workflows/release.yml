@@ -1,0 +1,111 @@
+# For a version tag (v1.0.0, v1.1.0, ...): build the Windows program and the Linux AppImage,
+# start each one once in its smoke mode (the main window, one sample drawn, then it quits),
+# and attach both to a DRAFT release, which is published by hand on the Releases page.
+# "Run workflow" builds and checks both without making a release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller==6.22.3
+      - name: Build ColortableEditor.exe (one file)
+        run: pyinstaller colortable_editor.spec --noconfirm
+      - name: Start it once (smoke mode)
+        # A windowed program has no console: its line goes to smoke.txt.
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $env:COLORTABLE_EDITOR_SMOKE = "1"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:COLORTABLE_EDITOR_SMOKE_FILE = Join-Path $PWD "smoke.txt"
+          $env:COLORTABLE_EDITOR_CONFIG_DIR = Join-Path $env:RUNNER_TEMP "ce-config"
+          $run = Start-Process -FilePath "dist\ColortableEditor.exe" -Wait -PassThru
+          if (Test-Path smoke.txt) { Get-Content smoke.txt }
+          if ($run.ExitCode -ne 0) { Write-Error "the smoke run failed (exit $($run.ExitCode))"; exit 1 }
+          if (-not (Select-String -Path smoke.txt -Pattern 'smoke: 6 tables listed \(6 known\), [1-9][0-9]* bundled samples and 2 older ones' -Quiet)) {
+            Write-Error "the smoke run did not find its tables and samples"; exit 1 }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: dist/ColortableEditor.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    # Ubuntu 22.04: an older C library than newer systems, so the AppImage runs on more PCs.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Qt's system libraries
+        # Qt needs these to start at all; the xcb ones are packed into the AppImage too, for
+        # desktops that lack them.
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libglib2.0-0 libdbus-1-3 libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller==6.22.3
+      - name: Build the folder
+        run: pyinstaller colortable_editor.spec --noconfirm
+      - name: Wrap it into ColortableEditor-x86_64.AppImage
+        run: bash packaging/build_appimage.sh
+      - name: Start it once (smoke mode)
+        timeout-minutes: 5
+        shell: bash
+        env:
+          COLORTABLE_EDITOR_SMOKE: "1"
+          QT_QPA_PLATFORM: offscreen
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          COLORTABLE_EDITOR_CONFIG_DIR="$RUNNER_TEMP/ce-config" ./ColortableEditor-x86_64.AppImage | tee smoke.txt
+          grep -Eq 'smoke: 6 tables listed \(6 known\), [1-9][0-9]* bundled samples and 2 older ones' smoke.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: ColortableEditor-x86_64.AppImage
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: [windows, linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: A draft release with both programs
+        uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/ColortableEditor.exe
+            artifacts/ColortableEditor-x86_64.AppImage

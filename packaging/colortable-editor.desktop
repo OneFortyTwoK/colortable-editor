@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Colortable Editor
+Comment=Make and change infrared and water-vapor color tables on real storm pictures
+Exec=ColortableEditor
+Icon=colortable-editor
+Categories=Graphics;
+Terminal=false

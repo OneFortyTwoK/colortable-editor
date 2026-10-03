@@ -1,0 +1,36 @@
+# Colortable Editor runs from this folder (python -m colortable_editor) or from an editable
+# install (pip install -e ., which adds a colortable-editor command): its pictures and font
+# are in vendor/, beside the packages. requirements.txt pins the versions it is tested with.
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "colortable-editor"
+version = "1.0.0"
+description = "Make and change infrared and water-vapor color tables on real storm pictures, and share them."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "licenses/*.txt", "vendor/fonts/LICENSE-*.txt"]
+authors = [{ name = "OneFortyTwoK" }]
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6-Essentials>=6.6",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+    "Pillow>=10.1",
+    "platformdirs>=4.0",
+    "defusedxml>=0.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/OneFortyTwoK/colortable-editor"
+
+[project.gui-scripts]
+colortable-editor = "colortable_editor.__main__:main"
+
+[tool.setuptools]
+packages = ["colortable_editor", "tcviz", "tcviz_gui", "tcviz_gui.pages"]
+
+[tool.setuptools.package-data]
+colortable_editor = ["builtin_tables.json"]
