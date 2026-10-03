@@ -109,6 +109,15 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           draft: true
+          # GitHub adds two "Source code" downloads to every release, and a friend took the
+          # code's zip for the program's (2026-10-03): the page says first which file is which
+          body: |
+            **Download the program, not the "Source code" files:**
+
+            - **Windows:** **ColortableEditor-Windows.zip**. Right-click it, choose Extract All, open the ColortableEditor folder inside and double-click ColortableEditor.
+            - **Linux:** **ColortableEditor-x86_64.AppImage**. Mark it executable (Properties, Permissions), then double-click it.
+
+            The two "Source code" downloads GitHub adds below are the program's code, for building it yourself.
           generate_release_notes: true
           files: |
             artifacts/ColortableEditor-Windows.zip
