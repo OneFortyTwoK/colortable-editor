@@ -95,6 +95,9 @@ class ManageColortablesDialog(QDialog):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         self.heading = QLabel("")
+        # wrapped: on one line its longest sentence set the window's least width -- 1350 px
+        # with Windows' fonts, nearly a laptop's whole screen (GitHub's Windows run, 2026-10-03)
+        self.heading.setWordWrap(True)
         layout.addWidget(self.heading)
 
         body = QHBoxLayout()

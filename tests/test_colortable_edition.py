@@ -86,8 +86,11 @@ def editor_edition(folders, monkeypatch):
 
 
 def _files_under(folder):
-    return sorted(str(p.relative_to(folder)) for p in Path(folder).rglob("*") if p.is_file()) if Path(folder).exists() \
-        else []
+    """The files under `folder`, as paths with forward slashes on every system (Windows
+    writes "drafts\\draft-....json", which the tests compare with "drafts/..."; the friends'
+    Windows run, 2026-10-03)."""
+    return sorted(p.relative_to(folder).as_posix() for p in Path(folder).rglob("*") if p.is_file()) \
+        if Path(folder).exists() else []
 
 
 def _manifest(folder, entries):
@@ -892,11 +895,15 @@ def test_the_windows_open_as_they_were_left_and_view_resets_them(qapp, editor_ed
     # shown, made bigger, closed: kept; and opened again at that size
     window = MainWindow()
     window.show()
-    window.resize(1000, 640)
+    # a size the window can take whatever the fonts: its least grows with them (Windows'
+    # are bigger than this PC's)
+    least = window.minimumSizeHint()
+    size = (max(1000, least.width() + 100), max(640, least.height() + 80))
+    window.resize(*size)
     window.close()
-    assert window_layout.get("main_window") == {"size": [1000, 640], "maximized": False}
+    assert window_layout.get("main_window") == {"size": list(size), "maximized": False}
     assert _files_under(folder) == ["layout.json"]
-    assert MainWindow().size().toTuple() == (1000, 640)
+    assert MainWindow().size().toTuple() == size
     # a size left on a big screen, on a laptop's: fitted to it
     window_layout.update("main_window", {"size": [2400, 1300]})
     room[0] = (1366, 728)
