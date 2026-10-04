@@ -118,6 +118,8 @@ jobs:
             - **Linux:** **ColortableEditor-x86_64.AppImage**. Mark it executable (Properties, Permissions), then double-click it.
 
             The two "Source code" downloads GitHub adds below are the program's code, for building it yourself.
+
+            **Updating from an earlier version:** your own tables are kept apart from the program (in your settings folder), so they stay. On Windows, delete the old ColortableEditor folder, then extract the new zip; on Linux, replace the old AppImage with the new one.
           generate_release_notes: true
           files: |
             artifacts/ColortableEditor-Windows.zip
