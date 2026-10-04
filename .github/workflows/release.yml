@@ -47,12 +47,14 @@ jobs:
         # The folder itself goes in, so Extract All gives one ColortableEditor folder, not loose files.
         shell: pwsh
         run: Compress-Archive -Path "dist\ColortableEditor" -DestinationPath "ColortableEditor-Windows.zip"
+      # kept a day only: the release takes its own copy, and the storage GitHub gives a
+      # private repository for these ran out on 2026-10-04
       - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: ColortableEditor-Windows.zip
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
   linux:
     # Ubuntu 22.04: an older C library than newer systems, so the AppImage runs on more PCs.
@@ -92,7 +94,7 @@ jobs:
           name: linux
           path: ColortableEditor-x86_64.AppImage
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
   release:
     needs: [windows, linux]
