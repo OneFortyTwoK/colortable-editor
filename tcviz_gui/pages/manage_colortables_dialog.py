@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from tcviz import colortable_export, colortable_history, colortable_library, edition, user_colortables
-from tcviz_gui import library_events, swatches
+from tcviz_gui import library_events, modal, swatches
 
 _NAME, _KIND, _RANGE, _STATUS = range(4)
 _BADGE_STYLES = {
@@ -611,7 +611,7 @@ class ManageColortablesDialog(QDialog):
     # The pop-ups, each in one place so a test can answer it.
 
     def _run(self, dialog):
-        return dialog.exec()
+        return modal.run(dialog)
 
     def _warn(self, title, text):
         QMessageBox.warning(self, title, text)

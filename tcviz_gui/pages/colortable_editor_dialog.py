@@ -52,9 +52,9 @@ One storm and Several storms, above the picture, switch what the picture's place
 (tcviz_gui.storm_grid), the table on several bundled samples at once -- those ticked under
 its Storms… -- with its own Copy grid, Save grid… and Share card… where the picture's are.
 The grid follows every edit: each flush tells it (`drawn`), and it draws its storms again a
-moment later. Its storms answer the mouse as the one picture does, with the same words
-(spot_for, show_spot, pick_spot), and a double-click shows one of them as the one picture
-(open_storm). Compare with and Swipe wait, greyed, while the grid is shown. The view chosen
+moment later. A click brings a storm to the front, big, the others small beside it; the one
+in front answers the mouse as the one picture does, with the same words (spot_for,
+show_spot, pick_spot), and a double-click shows it as the one picture (open_storm). Compare with and Swipe wait, greyed, while the grid is shown. The view chosen
 is remembered with the window's layout. The switch's row costs the window no height: the
 pictures give it some of their least height (_give_panes_room), and the column of buttons
 beside one picture lost the grid's own button.
@@ -103,7 +103,7 @@ from tcviz import (
     colortable_registry, edition, user_colortables, window_layout,
 )
 from tcviz.colortable_model import ColortableModel, EditRefused, kind_of_entry
-from tcviz_gui import colortable_widgets, library_events
+from tcviz_gui import colortable_widgets, library_events, modal
 from tcviz_gui.colortable_widgets import (
     ZOOM_STEP, ColorPanel, HelpPopup, PanelSplitter, PicturePane, PictureView, ScalePanel, StopBar, StopListPanel,
     degrees_text, zoom_words,
@@ -148,8 +148,9 @@ def _help(model):
         "Drag the divider between the color panel and the picture to the left to fold the color panel away "
         "and give the picture more room. Drag it back, or double-click it, to bring the panel back.",
         "Several storms, above the picture, shows the table on several storms at once as you edit; Storms… "
-        "chooses which. Click a storm to choose the stop that colors that spot, or Shift-click to add a stop; "
-        "double-click it to see it on its own.",
+        "chooses which. Click a storm to bring it to the front, then click a spot on it to choose the stop that "
+        "colors it, or Shift-click to add a stop; double-click it to see it on its own. Back to grid shows them "
+        "all the same size again.",
     ))
 # what _edit returns for a change the table would not take
 _REFUSED = object()
@@ -1195,10 +1196,10 @@ class ColortableEditorDialog(QDialog):
     def _on_picture_hover(self, pixel):
         self.show_spot(None if pixel is None else self.picture_spot(*pixel))
 
-    def show_spot(self, spot):
-        """The status line reading out `spot` (a PictureSpot), the pixel under the pointer
-        -- or, with None (off the picture, or a pixel with no data), the last message
-        again."""
+    def show_spot(self, spot, hint=None):
+        """The status line reading out `spot` (a PictureSpot), the pixel under the pointer,
+        then what a click there does (`hint`, else choosing or adding a stop) -- or, with
+        None (off the picture, or a pixel with no data), the last message again."""
         if spot is None:
             self.status.setText(self._said)
             return
@@ -1206,7 +1207,7 @@ class ColortableEditorDialog(QDialog):
         text = f"Under the pointer: {_value_text(spot.value)} {unit}"
         if abs(spot.in_table - spot.value) >= 0.05:
             text += f", drawn in this table's color for {_value_text(spot.in_table)} {unit}"
-        self.status.setText(text + ". Click to choose the stop that colors it; Shift-click to add a stop there.")
+        self.status.setText(f"{text}. {hint or 'Click to choose the stop that colors it; Shift-click to add a stop there.'}")
 
     def _on_compared_hover(self, pixel):
         """The pointer right of the swipe's line, over the table compared with: the value
@@ -1985,7 +1986,7 @@ class ColortableEditorDialog(QDialog):
         return path or None
 
     def _run(self, dialog):
-        return dialog.exec()
+        return modal.run(dialog)
 
 
 def _load_picture_job(path, root, job):
@@ -2079,5 +2080,5 @@ def _pictures_folder():
 def open_editor(parent=None, entry=None, mode="add", source=None):
     """Run the editor to its end; the stored entry, or None when nothing was saved."""
     dialog = ColortableEditorDialog(parent, entry=entry, mode=mode, source=source)
-    return dialog.entry if dialog.exec() else None
+    return dialog.entry if modal.run(dialog) else None
 

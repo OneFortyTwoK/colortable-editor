@@ -41,9 +41,11 @@ HOW_TO_USE = [
      "Press Several storms, above the picture, to see your table on several storms at once, all changing as "
      "you edit; One storm goes back to the one picture. Storms… chooses the storms: at first, the first six of "
      "your table's kind are ticked, and what you tick is kept for next time, as is the view you leave the "
-     "editor in. The storms of the other kind (water vapor, for an infrared table) are listed after them. The "
-     "storms work like the one picture: point at one to read its temperature, click it to choose the stop that "
-     "colors that spot, and Shift-click to add a stop there. Double-click a storm to see it on its own. Copy "
+     "editor in. The storms of the other kind (water vapor, for an infrared table) are listed after them. "
+     "Click a storm to bring it to the front: it gets big, the others go small beside it and keep changing as "
+     "you edit, and Back to grid shows them all the same size again. The storm in front works like the one "
+     "picture: point at it to read its temperature, click it to choose the stop that colors that spot, "
+     "Shift-click to add a stop there, and scroll to zoom in. Double-click it to see it on its own. Copy "
      "grid and Save grid… keep the storms shown as one picture with the table's color scale, and Share card… "
      "makes a card of them to post."),
     ("More room for the picture",

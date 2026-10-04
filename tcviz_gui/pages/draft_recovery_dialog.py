@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from tcviz import colortable_drafts, colortable_history, edition
+from tcviz_gui import modal
 
 
 def recovery_window(parent=None):
@@ -99,15 +100,40 @@ class DraftRecoveryDialog(QDialog):
         row.remark.setFont(small)
         words.addWidget(row.remark)
         outer.addLayout(words, 1)
+        row.draft = draft
         row.open_btn = QPushButton("Open")
         row.open_btn.setToolTip("Open this table in the editor with your unsaved changes; Save there keeps them.")
-        row.open_btn.clicked.connect(lambda _checked=False, d=draft: self.open_draft(d))
+        row.open_btn.clicked.connect(self._on_open_pressed)
         row.discard_btn = QPushButton("Discard")
         row.discard_btn.setToolTip("Throw these unsaved changes away.")
-        row.discard_btn.clicked.connect(lambda _checked=False, d=draft: self.discard_draft(d))
+        row.discard_btn.clicked.connect(self._on_discard_pressed)
         for button in (row.open_btn, row.discard_btn):
             outer.addWidget(button, 0, Qt.AlignmentFlag.AlignVCenter)
         return row
+
+    # A row's buttons reach the window through its own methods, never a lambda holding the
+    # window. Once exec() returns, PySide6 hands the window to Python, and such a lambda on a
+    # row's button could be the last thing holding it: let go as Qt deleted that row, it
+    # deleted the window around the row half deleted, and the program crashed (Discard on the
+    # only row, 2026-10-03). A method connected this way does not keep the window alive.
+
+    def _on_open_pressed(self):
+        draft = self._pressed_draft()
+        if draft is not None:
+            self.open_draft(draft)
+
+    def _on_discard_pressed(self):
+        draft = self._pressed_draft()
+        if draft is not None:
+            self.discard_draft(draft)
+
+    def _pressed_draft(self):
+        """The draft of the row whose button was just pressed."""
+        button = self.sender()
+        for row in self.rows.values():
+            if button is row.open_btn or button is row.discard_btn:
+                return row.draft
+        return None
 
     def row_texts(self):
         """Each row's words, as a person reads them (for tests and screenshots)."""
@@ -164,7 +190,7 @@ class DraftRecoveryDialog(QDialog):
         QMessageBox.warning(self, title, text)
 
     def _run(self, dialog):
-        return dialog.exec()
+        return modal.run(dialog)
 
 
 def offer(window, on_saved=None):

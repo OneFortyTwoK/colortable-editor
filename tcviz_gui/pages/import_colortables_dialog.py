@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from tcviz import colortable_import, edition, user_colortables
+from tcviz_gui import modal
 
 _SWATCH_W, _SWATCH_H = 140, 16
 _FILE_FILTER = ("Color tables (*.txt *.py *.pal *.PAL *.tbl *.cpt *.csv *.json);;"
@@ -506,5 +507,5 @@ def open_import_dialog(parent=None):
     """Show the Import window and wait for it to close; returns the names of the tables
     saved from it (already live in the pickers)."""
     dialog = ImportDialog(parent)
-    dialog.exec()
+    modal.run(dialog)
     return list(dialog.saved_names)

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from colortable_editor import APP_NAME, AUTHOR, LICENSE, SAMPLES_CREDIT, __version__, about
 from colortable_editor.icon import pixmap
 from tcviz import colortable_registry, user_colortables, window_layout
-from tcviz_gui import colortable_widgets
+from tcviz_gui import colortable_widgets, modal
 from tcviz_gui.pages import draft_recovery_dialog
 from tcviz_gui.pages.manage_colortables_dialog import ManageColortablesDialog
 
@@ -149,10 +149,10 @@ class MainWindow(QMainWindow):
         return TextWindow(self, "How to use", "".join(parts), heading=f"How to use {APP_NAME}", size=(660, 640))
 
     def show_about(self):
-        self.about_dialog().exec()
+        modal.run(self.about_dialog())
 
     def show_how_to_use(self):
-        self.how_to_use_dialog().exec()
+        modal.run(self.how_to_use_dialog())
 
     # ------------------------------------------------------------------ at start
 
@@ -176,7 +176,7 @@ class MainWindow(QMainWindow):
         self.panel._say(f"Saved '{name}'.")
 
     def _run(self, dialog):
-        return dialog.exec()
+        return modal.run(dialog)
 
 
 class TextWindow(QDialog):

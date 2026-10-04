@@ -641,9 +641,10 @@ def test_several_storms_shows_the_table_on_several_storms_at_once(qapp, editor_e
     """Several storms in the edition: the storm grid in the picture's place, the storms of
     the table's kind ticked under Storms…, the water-vapor ones listed after them; each drawn
     in the table exactly (water vapor at 0 to -90 °C), read on a background thread; what is
-    ticked, and the view, kept in the edition's own layout.json; a click on a storm choosing
-    the stop that colors it; a double-click showing it on its own; Save grid… writing one
-    picture of them all; and How to use saying how."""
+    ticked, and the view, kept in the edition's own layout.json; a click on a storm bringing it
+    to the front, where a click chooses the stop that colors it, and Back to grid showing them
+    all alike again; a double-click showing it on its own; Save grid… writing one picture of
+    them all; and How to use saying how."""
     import time
 
     from matplotlib.colors import Normalize
@@ -683,10 +684,17 @@ def test_several_storms_shows_the_table_on_several_storms_at_once(qapp, editor_e
     assert window_layout.get("storm_grid") == {"ir": ["melissa_ir", "melissa_wv"]}
     assert window_layout.get("editor") == {"view": "several"}
     assert _files_under(editor_edition["editor"]) == ["layout.json"]
-    # a click on a storm chooses the stop that colors that spot, as on the one picture
+    # a click on a storm brings it to the front; there a click chooses the stop that colors
+    # that spot, as on the one picture
     values = colortable_preview.load_bundled(d._bundled["melissa_ir"]).full
+    selected = d.selected
+    g.cell("melissa_ir").pane.clicked.emit(5, 7, False)
+    assert g.front == "melissa_ir" and d.selected == selected and g.back_btn.isEnabled()
     g.cell("melissa_ir").pane.clicked.emit(5, 7, False)
     assert d.selected == d.model.stop_for_value(float(values[5, 7]) - 273.15)
+    wait(lambda: not g.busy())                          # the storm in front, read whole
+    g.back_btn.click()
+    assert g.front is None and not g.back_btn.isEnabled()
     # a double-click: the storm on its own
     assert g.open_storm("melissa_wv") and d.view() == "one" and d.picture_combo.currentData() == "bundled:melissa_wv"
     assert d.set_view("several")
@@ -877,6 +885,172 @@ def test_discard_decide_later_and_damaged_drafts(qapp, editor_edition, monkeypat
     assert keep.exists() and not drop.exists()
     assert _files_under(folder / "drafts") == [keep.name]
     window.close()
+
+
+# ------------------------------------------------- the real program, its buttons pressed
+
+# Every other test answers the windows itself (_run and the pop-ups replaced): quick, but no
+# real QDialog.exec() ever runs, and when one returns PySide6 6.11 hands the window to Python
+# to keep or let go. Discard in the window offered at start crashed the whole program that
+# way (2026-10-03) with every test green. These start the real program in a process of its
+# own and press its real buttons, one step at a time from its event loop, as a person would:
+# a crash fails the test with Python's trace of where it happened.
+_PERSON = r'''
+import faulthandler, gc, json, sys, weakref
+faulthandler.enable()
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication, QMessageBox
+
+from colortable_editor import __main__ as program
+
+STEPS = {
+    "discard": ["recovery: Discard", "ask: Yes", "gone: DraftRecoveryDialog", "settle", "report"],
+    "open-save": ["recovery: Open", "editor: Save", "gone: ColortableEditorDialog", "gone: DraftRecoveryDialog",
+                  "settle", "report"],
+    "open-close": ["recovery: Open", "editor: close", "ask: Yes", "gone: ColortableEditorDialog",
+                   "gone: DraftRecoveryDialog", "settle", "report"],
+    "new-close": ["main: New table", "editor: close", "gone: ColortableEditorDialog", "main: New table",
+                  "editor: close", "gone: ColortableEditorDialog", "settle", "report"],
+}[sys.argv[1]]
+state = {"step": 0, "waited": 0, "turns": 0}
+editors = []                     # every editor seen, to tell that a closed one was let go
+
+
+def shown(kind):
+    return [w for w in QApplication.topLevelWidgets() if type(w).__name__ == kind and w.isVisible()]
+
+
+def press(do):
+    QTimer.singleShot(0, do)     # from the event loop, as a click comes; not inside this step
+
+
+def report():
+    from tcviz import edition
+    folder = edition.editor_config_dir()
+    drafts = sorted(p.name for p in (folder / "drafts").glob("*.json")) if (folder / "drafts").is_dir() else []
+    store = folder / "colortables.json"
+    tables = [t["name"] for t in json.loads(store.read_text(encoding="utf-8"))] if store.exists() else []
+    gc.collect()
+    print("REPORT " + json.dumps({"drafts": drafts, "tables": tables, "main_window": len(shown("MainWindow")),
+                                  "editors_seen": len(editors),
+                                  "editors_kept": sum(ref() is not None for ref in editors)}), flush=True)
+
+
+def step(what, arg):
+    if what == "recovery":
+        windows = shown("DraftRecoveryDialog")
+        if windows:
+            row = next(iter(windows[0].rows.values()))
+            press((row.open_btn if arg == "Open" else row.discard_btn).click)
+        return bool(windows)
+    if what == "editor":
+        windows = shown("ColortableEditorDialog")
+        if windows:
+            editors.append(weakref.ref(windows[0]))
+            press(windows[0].save_btn.click if arg == "Save" else windows[0].reject)
+        return bool(windows)
+    if what == "ask":
+        boxes = [w for w in QApplication.topLevelWidgets() if isinstance(w, QMessageBox) and w.isVisible()]
+        if boxes:
+            # clicked here and now: a pop-up's button clicked from a timer later was found
+            # deleted (a pop-up only closes, so the step waits on nothing)
+            boxes[0].button(getattr(QMessageBox.StandardButton, arg)).click()
+        return bool(boxes)
+    if what == "main":
+        windows = shown("MainWindow")
+        if windows:
+            press(windows[0].new_action.trigger)
+        return bool(windows)
+    if what == "gone":
+        return not shown(arg)
+    if what == "settle":         # a few turns of the event loop: what was let go is deleted by now
+        state["turns"] += 1
+        return state["turns"] > 5
+    if what == "report":
+        report()
+        for window in shown("MainWindow"):
+            window.close()
+        return True
+
+
+def tick():
+    if state["step"] >= len(STEPS):
+        return
+    what, _, arg = STEPS[state["step"]].partition(": ")
+    if step(what, arg):
+        state["step"] += 1
+        state["waited"] = 0
+        return
+    state["waited"] += 1
+    if state["waited"] > 150:
+        print("STUCK at " + STEPS[state["step"]], flush=True)
+        QApplication.exit(3)
+
+
+_make_app = program._make_app
+
+
+def make_app(argv):
+    app = _make_app(argv)
+    app._person = QTimer(app)
+    app._person.timeout.connect(tick)
+    app._person.start(100)
+    return app
+
+
+program._make_app = make_app
+code = program.main(["ColortableEditor"])
+print(f"EXIT {code}", flush=True)
+sys.exit(code)
+'''
+
+
+def _as_a_person(tmp_path, scenario):
+    """Colortable Editor started for real (not a smoke run) and used through `scenario`
+    (_PERSON's STEPS); what it left behind."""
+    env = _smoke_env(tmp_path)
+    env.pop("COLORTABLE_EDITOR_SMOKE")
+    run = subprocess.run([sys.executable, "-X", "faulthandler", "-c", _PERSON, scenario], cwd=ROOT, env=env,
+                         capture_output=True, text=True, encoding="utf-8", timeout=180)
+    said = f"exit code {run.returncode}\n{run.stdout[-2000:]}\n{run.stderr[-6000:]}"
+    assert run.returncode == 0 and "EXIT 0" in run.stdout, said
+    return json.loads(next(line for line in run.stdout.splitlines() if line.startswith("REPORT "))[7:])
+
+
+def _left_over(tmp_path):
+    return _draft_file(tmp_path / "editor", "e" * 32, {"name": "left_over", "stops": _STOPS, "vmin_c": -90.0,
+                                                       "vmax_c": 30.0}, "add")
+
+
+def test_discard_at_start_throws_the_table_away_and_the_program_carries_on(tmp_path):
+    _left_over(tmp_path)
+    report = _as_a_person(tmp_path, "discard")
+    assert report["drafts"] == [] and report["tables"] == []
+    assert report["main_window"] == 1
+
+
+def test_open_at_start_then_save_keeps_the_table(tmp_path):
+    _left_over(tmp_path)
+    report = _as_a_person(tmp_path, "open-save")
+    assert report["drafts"] == [] and report["tables"] == ["left_over"]
+    assert report["main_window"] == 1
+    assert report["editors_seen"] == 1 and report["editors_kept"] == 0
+
+
+def test_open_at_start_then_close_without_saving_lets_it_go(tmp_path):
+    _left_over(tmp_path)
+    report = _as_a_person(tmp_path, "open-close")
+    assert report["drafts"] == [] and report["tables"] == []
+    assert report["main_window"] == 1
+    assert report["editors_seen"] == 1 and report["editors_kept"] == 0
+
+
+def test_a_closed_editor_is_let_go(tmp_path):
+    """Each editor holds its pictures (13 MB for the first sample, far more for a VIIRS one);
+    one kept after it closed was memory the program never got back."""
+    report = _as_a_person(tmp_path, "new-close")
+    assert report["editors_seen"] == 2 and report["editors_kept"] == 0
+    assert report["drafts"] == [] and report["main_window"] == 1
 
 
 # --------------------------------------------------------- the windows' layout

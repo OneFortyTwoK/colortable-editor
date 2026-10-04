@@ -18,12 +18,19 @@ a bigger window than the one picture does (AREA_LEAST). They follow every edit: 
 says each time it has drawn (its `drawn` signal), and the grid draws itself again at most
 every REDRAW_MS, so dragging a stop stays smooth.
 
-Each storm answers the mouse as the editor's one picture does -- it is a PicturePane of its
-own, never zoomed: the value under the pointer in the editor's status line, a click to
-choose the stop that colors that spot, Shift-click to add a stop there (through the
-editor's show_spot and pick_spot, so the words are the same). The value is the storm's own
-pixel, read from its thinned values, at the range its colors are drawn at: 0 to -90 °C on a
-water-vapor storm. A double-click shows the storm on its own, as the editor's one picture.
+A click on a storm brings it to the front (bring_to_front): it takes most of the room, and
+the others go small in a strip beside or under it (_GridArea.place), still following every
+edit; another click on one of those brings that one to the front instead, and Back to grid
+shows them all the same size again (show_all). The storm in front answers the mouse as the
+editor's one picture does -- it is a PicturePane of its own: the value under the pointer in
+the editor's status line, a click to choose the stop that colors that spot, Shift-click to
+add a stop there (through the editor's show_spot and pick_spot, so the words are the same),
+the wheel to zoom and a drag to move about. For that it is read again whole on the
+background thread, as the one picture is (load_bundled), so zoomed in it shows every pixel
+of the saved picture; only the storm in front is kept whole. The others read out the value
+under the pointer too. The value is the storm's own pixel at the range its colors are drawn
+at: 0 to -90 °C on a water-vapor storm. A double-click on the storm in front shows it on its
+own, as the editor's one picture.
 
 The pictures are drawn as the editor draws its own (colortable_preview): the table row of
 each pixel is worked out once per range (PreviewSource.rows), and an edit is one lookup of
@@ -79,6 +86,10 @@ REDRAW_MS = 40
 # The least room the storms take, (across, down): less than the one picture and its controls
 # need, so switching to Several storms never makes the editor's least window size bigger.
 AREA_LEAST = (180, 160)
+# With a storm in front: the least share of the room, across or down, the strip of the others
+# gets, and how big each of those is at most beside the storm in front.
+STRIP_SHARE = 0.25
+STRIP_MOST = 0.5
 _GAP = 10                           # between two storms, across and down
 _HIGHLIGHT = QColor(42, 130, 218)   # the theme's selection blue: the storm in the Picture box
 _EDGE = QColor(85, 85, 85)          # a pop-up's edge and fill, as the "?" pop-up has them
@@ -86,6 +97,8 @@ _RAISED = QColor(45, 45, 45)
 _HEADINGS = {"ir": "Infrared storms", "wv": "Water-vapor storms (always drawn from 0 to -90 °C)"}
 _NONE_OFFERED = "There are no storm pictures to try this kind of table on."
 _NONE_TICKED = "No storms are ticked. Press Storms… and tick the storms to see your table on."
+_BACK_TIP = "Show every storm ticked at the same size again (a click on a storm brings it to the front)."
+_FRONT_HINT = "Click to bring this storm to the front."
 _STORMS_TIPS = {
     True: "Choose the storms to show: tick them in the list that opens. What you tick is kept for next time.",
     False: _NONE_OFFERED,
@@ -211,11 +224,17 @@ def reason_words(error):
 
 
 def _job(number, task, sample, room):
-    """Runs on a background thread: one sample read, for the grid ("cell": load_cell) or for
+    """Runs on a background thread: one sample read, for the grid ("cell": load_cell), for the
+    storm in front ("front": the whole picture, as the editor's one picture reads it) or for
     the grid as one picture ("card": card_values). (number, task, its id, room, what was read
     or None, why it couldn't be or None)."""
     try:
-        value = load_cell(sample) if task == "cell" else card_values(sample, room)
+        if task == "cell":
+            value = load_cell(sample)
+        elif task == "front":
+            value = colortable_preview.load_bundled(sample)
+        else:
+            value = card_values(sample, room)
     except Exception as e:  # noqa: BLE001 -- a sample that can't be read is left out, whatever it raised
         return number, task, sample.id, room, None, reason_words(e)
     return number, task, sample.id, room, value, None
@@ -225,31 +244,54 @@ def _job(number, task, sample, room):
 
 class _CellPane(PicturePane):
     """A storm's picture in the grid: the editor's picture pane, answering the mouse as the
-    one picture does, but always the whole picture -- the grid's storms always fit, so the
-    wheel zooms nothing -- with a double-click of its own (`double_clicked`), and a frame in
-    the theme's blue while it is the storm in the editor's Picture box (`current`)."""
+    one picture does. Only the storm in front (`in_front`) zooms and moves about; the others
+    always show the whole picture, the pointing hand over them saying a click brings one to
+    the front. A double-click on the storm in front is `double_clicked`. A frame in the
+    theme's blue while it is the storm in the editor's Picture box (`current`)."""
 
     double_clicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent, interactive=True)
         self.current = False
+        self.in_front = False
         # the grid gives each storm its room (_GridArea): it asks for none of its own
         self.setMinimumSize(0, 0)
+        self._show_cursor()
 
     def set_current(self, current):
         if current != self.current:
             self.current = current
             self.update()
 
+    def set_in_front(self, in_front):
+        """In front, or back among the others: the whole picture again either way."""
+        if in_front != self.in_front:
+            self.in_front = in_front
+            self.view.fit()
+            self._show_cursor()
+
+    def _show_cursor(self):
+        # (PicturePane's own __init__ asks before this pane has said where it is)
+        if getattr(self, "in_front", True):
+            super()._show_cursor()
+        else:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+
     def wheelEvent(self, event):
-        event.ignore()
+        if self.in_front:
+            super().wheelEvent(event)
+        else:
+            event.ignore()
 
     def mouseDoubleClickEvent(self, event):
-        # the press before it was a click, and chose a stop; the second press is no click
         if event.button() == Qt.MouseButton.LeftButton and not self.message and self.picture_rect() is not None:
+            # In front, the press before it was a click and chose a stop, and this one shows
+            # the storm on its own. Elsewhere the press before it brought a storm to the
+            # front, and this one is no click at all.
             event.accept()
-            self.double_clicked.emit()
+            if self.in_front:
+                self.double_clicked.emit()
             return
         super().mouseDoubleClickEvent(event)
 
@@ -267,9 +309,11 @@ class _StormCell(QWidget):
     """One storm in the grid: its picture (_CellPane) as big as fits, its name right under
     it on two lines (name_lines), each cut short with "…" when the cell is too narrow for it
     -- the storm's title in the name's tooltip -- the two together in the middle of the
-    cell. A double-click on either is `opened`."""
+    cell. A click on the name of a storm not in front is `chosen`; a double-click on the
+    storm in front, or on its name, is `opened`."""
 
     opened = Signal()
+    chosen = Signal()
 
     def __init__(self, sample, parent=None):
         super().__init__(parent)
@@ -280,7 +324,8 @@ class _StormCell(QWidget):
         self.caption.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         self.lines = name_lines(sample)
         self.caption.setToolTip(f"{sample.description or sample.label}\n"
-                                "Double-click the picture to see this storm on its own.")
+                                "Click this storm to bring it to the front. There, click a spot on it to choose "
+                                "the stop that colors it, and double-click it to see it on its own.")
         self.place()
 
     def caption_height(self):
@@ -310,10 +355,19 @@ class _StormCell(QWidget):
         super().resizeEvent(event)
         self.place()
 
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
+            event.accept()
+            if not self.pane.in_front:
+                self.chosen.emit()
+            return
+        super().mouseReleaseEvent(event)
+
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             event.accept()
-            self.opened.emit()
+            if self.pane.in_front:
+                self.opened.emit()
             return
         super().mouseDoubleClickEvent(event)
 
@@ -323,14 +377,57 @@ def caption_height(widget):
     return 2 * widget.fontMetrics().lineSpacing() + 4
 
 
+def grid_rects(count, width, height, caption_height, gap=_GAP, most=None):
+    """Where `count` storms go in a room `width` x `height` with `caption_height` of name
+    under each: (columns, [(left, top, width, height) of each]) -- as many across as
+    best_columns says, row after row, each row as tall as a picture as wide as a column (or
+    as fits) and its name, all of them together in the middle: room to spare goes around the
+    whole grid, not between its storms. With `most`, no picture is wider than that."""
+    cols = best_columns(count, width, height, caption_height, gap)
+    rows = math.ceil(count / cols)
+    across = max(0.0, (width - gap * (cols - 1)) / cols)
+    if most is not None:
+        across = min(across, max(0.0, most))
+    down = max(0.0, min((height - gap * (rows - 1)) / rows, across + caption_height))
+    left0 = max(0.0, (width - cols * across - gap * (cols - 1)) / 2)
+    top0 = max(0.0, (height - rows * down - gap * (rows - 1)) / 2)
+    rects = []
+    for i in range(count):
+        row, col = divmod(i, cols)
+        rects.append((left0 + col * (across + gap), top0 + row * (down + gap), across, down))
+    return cols, rects
+
+
+def front_rects(others, width, height, caption_height, gap=_GAP):
+    """Where the storm in front and the `others` go in a room `width` x `height`: the one in
+    front as big as leaves the others at least STRIP_SHARE of the room beside it or under it
+    -- whichever lets it be bigger -- and the others in all the room left there, each no
+    wider than STRIP_MOST of it. ((left, top, width, height) of the one in front, [the same
+    of each of the others], how many of them across)."""
+    beside = min(width * (1 - STRIP_SHARE) - gap, height - caption_height)
+    under = min(width, height * (1 - STRIP_SHARE) - gap - caption_height)
+    if beside > under:
+        side = max(0.0, beside)
+        front = (0.0, max(0.0, (height - side - caption_height) / 2), side, side + caption_height)
+        strip = (side + gap, 0.0, max(0.0, width - side - gap), height)
+    else:
+        side = max(0.0, under)
+        front = (max(0.0, (width - side) / 2), 0.0, side, side + caption_height)
+        strip = (0.0, side + caption_height + gap, width, max(0.0, height - side - caption_height - gap))
+    cols, rects = grid_rects(others, strip[2], strip[3], caption_height, gap, most=side * STRIP_MOST)
+    return front, [(strip[0] + left, strip[1] + top, w, h) for left, top, w, h in rects], cols
+
+
 class _GridArea(QWidget):
-    """The storms ticked, all the same size, as many across as best_columns says, in the
-    list's order; a few words in the middle while there are none. It asks the window for
-    no more than AREA_LEAST: the storms share what room it gets."""
+    """The storms ticked, in the list's order: all the same size (grid_rects) -- or, with one
+    in `front`, that one big and the others small beside or under it (front_rects) -- and a
+    few words in the middle while there are none. It asks the window for no more than
+    AREA_LEAST: the storms share what room it gets."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.cells = []
+        self.front = None
         self.columns = 1
         self.message = QLabel("", self)
         self.message.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -344,12 +441,14 @@ class _GridArea(QWidget):
     def sizeHint(self):
         return QSize(640, 440)
 
-    def set_cells(self, cells, message=""):
-        """Show `cells` (_StormCell each), in that order -- or, with none, `message`."""
+    def set_cells(self, cells, message="", front=None):
+        """Show `cells` (_StormCell each), in that order, `front` (one of them) big -- or,
+        with none, `message`."""
         for cell in self.cells:
             if cell not in cells:
                 cell.hide()
         self.cells = list(cells)
+        self.front = front if front in self.cells else None
         self.message.setText(message)
         self.message.setVisible(not self.cells)
         self.place()
@@ -360,23 +459,19 @@ class _GridArea(QWidget):
         """Lay the storms out again in the room there is now."""
         w, h = self.width(), self.height()
         self.message.setGeometry(12, 12, max(0, w - 24), max(0, h - 24))
-        count = len(self.cells)
-        if not count:
+        if not self.cells:
             return
         below = caption_height(self)
-        cols = self.columns = best_columns(count, w, h, below)
-        rows = math.ceil(count / cols)
-        across = max(0.0, (w - _GAP * (cols - 1)) / cols)
-        # each row as tall as a picture as wide as a column (or as fits) and its name, the
-        # rows together in the middle: room to spare goes above and below the whole grid,
-        # not between its rows
-        down = max(0.0, min((h - _GAP * (rows - 1)) / rows, across + below))
-        top0 = max(0.0, (h - rows * down - _GAP * (rows - 1)) / 2)
-        for i, cell in enumerate(self.cells):
-            row, col = divmod(i, cols)
-            left, top = round(col * (across + _GAP)), round(top0 + row * (down + _GAP))
-            right, bottom = round(col * (across + _GAP) + across), round(top0 + row * (down + _GAP) + down)
-            cell.setGeometry(left, top, right - left, bottom - top)
+        if self.front is not None and len(self.cells) > 1:
+            others = [cell for cell in self.cells if cell is not self.front]
+            big, rects, self.columns = front_rects(len(others), w, h, below)
+            placed = [(self.front, big), *zip(others, rects)]
+        else:
+            self.columns, rects = grid_rects(len(self.cells), w, h, below)
+            placed = list(zip(self.cells, rects))
+        for cell, (left, top, across, down) in placed:
+            x, y = round(left), round(top)
+            cell.setGeometry(x, y, round(left + across) - x, round(top + down) - y)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -438,6 +533,8 @@ class StormGrid(QWidget):
         self._jobs = itertools.count(1)
         self._handover = None           # what Copy grid, Save grid… or Share card… waits for
         self._widgets = {}              # id -> _StormCell, while ticked
+        self.front = None               # the id of the storm in front, or None: all the same size
+        self._front_source = None       # (id, its PreviewSource read whole) of the storm in front
         self.checks = {}                # id -> its box in Storms…
         self._lut = (None, None)        # (the editor's table tuple, its colors)
         self._note = ""                 # the last thing said under the grid, under what is being read
@@ -462,6 +559,9 @@ class StormGrid(QWidget):
         controls.setContentsMargins(0, 0, 0, 0)
         self.storms_btn = self._button("Storms…", _STORMS_TIPS[True], self.open_storms)
         controls.addWidget(self.storms_btn)
+        self.back_btn = self._button("Back to grid", _BACK_TIP, self.show_all)
+        self.back_btn.setEnabled(False)
+        controls.addWidget(self.back_btn)
         # Storms… at the top, the copy buttons at the bottom, as the one picture's zoom and copy buttons stand
         controls.addItem(QSpacerItem(0, 12, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding))
         self.copy_btn = self._button(
@@ -515,6 +615,7 @@ class StormGrid(QWidget):
         if self._kind is not None:
             self._note = ""             # what was said was about the other kind's storms
         self._kind = self.editor.model.kind
+        self._put_back()
         samples = self.editor.grid_samples()
         self._known.update((s.id, s) for s in samples)
         self._groups = offered(self._kind, samples)
@@ -582,6 +683,8 @@ class StormGrid(QWidget):
     def _on_tick(self, _on):
         self._ticked = [sid for sid, box in self.checks.items() if box.isChecked()]
         remember_ticks(self._kind, self._ticked)
+        if self.front not in self._ticked:
+            self._put_back()
         # a storm unticked keeps its values (ticked again, it is drawn at once), not its rows
         # nor its picture on screen
         for sid in [sid for sid in self._widgets if sid not in self._ticked]:
@@ -632,8 +735,11 @@ class StormGrid(QWidget):
                 widget.pane.hovered.connect(functools.partial(self._on_hover, sid))
                 widget.pane.clicked.connect(functools.partial(self._on_click, sid))
                 widget.opened.connect(functools.partial(self.open_storm, sid))
+                widget.chosen.connect(functools.partial(self.bring_to_front, sid))
+            widget.pane.set_in_front(sid == self.front)
             cells.append(widget)
-        self.area.set_cells(cells, "" if cells else _NONE_TICKED if self._groups else _NONE_OFFERED)
+        self.area.set_cells(cells, "" if cells else _NONE_TICKED if self._groups else _NONE_OFFERED,
+                            front=self._widgets.get(self.front))
         self._show_buttons()
 
     def cell(self, sid):
@@ -664,6 +770,7 @@ class StormGrid(QWidget):
             was = (pane.message, pane.full_shape)
             pane.set_current(current == f"bundled:{sid}")
             cell = self._cells.get(sid)
+            whole = self._whole(sid)
             if cell is None:
                 pane.set_message("Loading…" if running == sid else "Waiting to load…")
             elif table is None:
@@ -671,10 +778,16 @@ class StormGrid(QWidget):
             else:
                 cmap, vmax_k, vmin_k = table
                 vmax_d, vmin_d = cell.source.drawing_range(vmax_k, vmin_k)
+                norm = Normalize(vmin=vmin_d, vmax=vmax_d)
                 if pane.message:
                     pane.set_message("")
-                pane.set_index_image(cell.source.rows(Normalize(vmin=vmin_d, vmax=vmax_d), cmap.N),
-                                     stride=cell.stride, full_shape=cell.saved_shape)
+                if whole is not None:
+                    # in front, read whole: every pixel up close, as the one picture draws it
+                    pane.set_index_image(whole.rows(norm, cmap.N), stride=whole.stride, full_shape=whole.full_shape,
+                                         full_rows=functools.partial(whole.window_rows, norm, cmap.N))
+                else:
+                    pane.set_index_image(cell.source.rows(norm, cmap.N), stride=cell.stride,
+                                         full_shape=cell.saved_shape)
                 pane.set_lut(self._lut[1])
             if (pane.message, pane.full_shape) != was:
                 widget.place()          # words in the picture's place, or a picture of another shape
@@ -688,21 +801,68 @@ class StormGrid(QWidget):
         thinned one shown was kept from (PreviewSource.saved_pixel), whose value the
         thinned values hold, at the range the storm is drawn at -- 0 to -90 °C on a
         water-vapor storm, whatever the table's."""
+        whole = self._whole(sid)
+        if whole is not None:
+            return self.editor.spot_for(whole.saved_value(row, col), whole)
         cell = self._cells.get(sid)
         if cell is None:
             return None
         raw = cell.source.saved_value(row // cell.stride, col // cell.stride)
         return self.editor.spot_for(raw, cell.source)
 
+    def _whole(self, sid):
+        """Storm `sid` read whole (a PreviewSource), when it is in front and has been read
+        so; else None (it is drawn from its thinned values)."""
+        if self._front_source is not None and self._front_source[0] == sid == self.front:
+            return self._front_source[1]
+        return None
+
     def _on_hover(self, sid, pixel):
-        self.editor.show_spot(None if pixel is None else self.spot(sid, *pixel))
+        spot = None if pixel is None else self.spot(sid, *pixel)
+        self.editor.show_spot(spot, hint=None if sid == self.front else _FRONT_HINT)
 
     def _on_click(self, sid, row, col, add):
-        self.editor.pick_spot(self.spot(sid, row, col), add=add)
+        """A click on a storm: on the one in front, the stop that colors that spot (or,
+        with Shift, a stop added there); on any other, that one brought to the front."""
+        if sid == self.front:
+            self.editor.pick_spot(self.spot(sid, row, col), add=add)
+        else:
+            self.bring_to_front(sid)
+
+    def bring_to_front(self, sid):
+        """Storm `sid` big, the others small beside or under it, its whole picture read for
+        it. Whether it is in front now."""
+        if sid == self.front:
+            return True
+        if sid not in self.shown_ids():
+            return False
+        self.front = sid
+        self._front_source = None
+        self._want("front", sid)
+        self._pump()
+        self._arrange()
+        self.redraw()
+        self._say(f"{self._known[sid].label} is in front: click a spot on it to choose the stop that colors it, "
+                  "or another storm to bring that one to the front. Back to grid shows them all the same size.")
+        return True
+
+    def show_all(self):
+        """Back to grid: every storm the same size again."""
+        if self.front is None:
+            return
+        self._put_back()
+        self._arrange()
+        self.redraw()
+        self._say("Every storm is the same size again; click one to bring it to the front.")
+
+    def _put_back(self):
+        """Nothing in front any more, and the whole picture read for it let go."""
+        self.front = None
+        self._front_source = None
 
     def open_storm(self, sid):
         """Show storm `sid` on its own: the editor's One storm, with it in the Picture box (a
-        double-click on it). Whether it is shown."""
+        double-click on it in front). Whether it is shown."""
         shown = self.editor.open_storm(sid)
         sample = self._known.get(sid)
         if not shown and sample is not None:
@@ -722,6 +882,8 @@ class StormGrid(QWidget):
             return False
         if task == "cell":
             return sid in self._ticked and sid not in self._cells
+        if task == "front":
+            return sid == self.front and self._whole(sid) is None
         handover = self._handover
         return (handover is not None and room == handover.room and sid in handover.ids
                 and (sid, room) not in self._card_values)
@@ -749,7 +911,12 @@ class StormGrid(QWidget):
         if self._running is None or self._running[0] != number:
             return
         self._running = None
-        if why is not None:
+        if task == "front":
+            # read whole for the storm in front -- unless another is in front by now; one
+            # that can't be read whole is drawn from its thinned values, as the others are
+            if why is None and sid == self.front:
+                self._front_source = (sid, value)
+        elif why is not None:
             self._left_out(sid, why)
         elif task == "cell":
             self._cells[sid] = value
@@ -762,9 +929,10 @@ class StormGrid(QWidget):
     def _on_read_failed(self, message):
         if self._running is None:
             return
-        sid = self._running[2]
+        _number, task, sid, _room = self._running
         self._running = None
-        self._left_out(sid, "something went wrong reading it")
+        if task != "front":
+            self._left_out(sid, "something went wrong reading it")
         self._pump()
         self.redraw()
         self._check_handover()
@@ -772,6 +940,8 @@ class StormGrid(QWidget):
     def _left_out(self, sid, why):
         """A storm that couldn't be read: out of the grid, and said so."""
         self._failed[sid] = why
+        if sid == self.front:
+            self._put_back()
         sample = self._known[sid]
         self._note = f"{sample.label} couldn't be opened ({why}), so it is left out of the grid."
         self._show_status()
@@ -809,6 +979,8 @@ class StormGrid(QWidget):
             sample = self._known[sid]
             if task == "cell":
                 lines.append(f"Loading {storm_words(sample)}…")
+            elif task == "front":
+                lines.append(f"Loading every pixel of {storm_words(sample)}…")
             else:
                 handover = self._handover
                 at = handover.ids.index(sid) + 1 if handover is not None and sid in handover.ids else 1
@@ -823,6 +995,7 @@ class StormGrid(QWidget):
         ready = self.editor.drawn_table() is not None and bool(self.shown_ids()) and self._handover is None
         for button in (self.copy_btn, self.save_btn, self.share_btn):
             button.setEnabled(ready)
+        self.back_btn.setEnabled(self.front is not None)
 
     # ------------------------------------------------------------------ the grid as one picture
 
