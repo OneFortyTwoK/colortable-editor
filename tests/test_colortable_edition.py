@@ -909,12 +909,18 @@ def test_discard_decide_later_and_damaged_drafts(qapp, editor_edition, monkeypat
 # to keep or let go. Discard in the window offered at start crashed the whole program that
 # way (2026-10-03) with every test green. These start the real program in a process of its
 # own and press its real buttons, one step at a time from its event loop, as a person would:
-# a crash fails the test with Python's trace of where it happened.
+# a crash fails the test with Python's trace of where it happened, and so does an error in
+# one of the program's own handlers (which Qt only prints, the program carrying on).
 _PERSON = r'''
-import faulthandler, gc, json, sys, weakref
+import faulthandler, gc, json, re, sys, traceback, weakref
+from pathlib import Path
 faulthandler.enable()
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import (
+    QApplication, QCheckBox, QFileDialog, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton,
+)
+from shiboken6 import Shiboken
 
 from colortable_editor import __main__ as program
 
@@ -924,19 +930,77 @@ STEPS = {
                   "settle", "report"],
     "open-close": ["recovery: Open", "editor: close", "ask: Yes", "gone: ColortableEditorDialog",
                    "gone: DraftRecoveryDialog", "settle", "report"],
-    "new-close": ["main: New table", "editor: close", "gone: ColortableEditorDialog", "main: New table",
-                  "editor: close", "gone: ColortableEditorDialog", "settle", "report"],
+    # "let go": a window was let go once it closed, not only once the window it was opened from
+    # did -- a Share card… kept until the editor closed would hold the card it drew till then
+    "new-close": ["main: New table", "editor: close", "gone: ColortableEditorDialog", "let go: ColortableEditorDialog",
+                  "main: New table", "editor: close", "gone: ColortableEditorDialog", "settle", "report"],
+    # History… from the list's right-click menu: the version chosen opens in the editor
+    "history-from-list": ["right-click: mine", "menu: History…", "version: v1",
+                          "press: ColortableHistoryDialog / Open in the editor", "editor: Save",
+                          "gone: ColortableEditorDialog", "gone: ColortableHistoryDialog", "settle", "report"],
+    # ...and from the editor's own History… button, into the table open there
+    "history-from-editor": ["press: MainWindow / Edit…", "press: ColortableEditorDialog / History…", "version: v1",
+                            "press: ColortableHistoryDialog / Restore this version", "gone: ColortableHistoryDialog",
+                            "let go: ColortableHistoryDialog", "editor: Save", "gone: ColortableEditorDialog", "settle",
+                            "report"],
+    "import": ["press: MainWindow / Import…", "paste: ImportDialog", "press: ImportDialog / Read",
+               "press: ImportDialog / Save selected", "saved: ImportDialog", "press: ImportDialog / Close",
+               "gone: ImportDialog", "settle", "report"],
+    "export": ["press: MainWindow / Export…", "save as: one.txt", "press: MainWindow / Export many…",
+               "tick: ExportManyDialog / All built-in water-vapor tables", "press: ExportManyDialog / Save…",
+               "save as: many.txt", "gone: ExportManyDialog", "settle", "report"],
+    "share-card": ["main: New table", "press: ColortableEditorDialog / Share card…",
+                   "press: ShareCardDialog / Save card…", "save as: card.png", "press: ShareCardDialog / Close",
+                   "gone: ShareCardDialog", "let go: ShareCardDialog", "editor: close", "gone: ColortableEditorDialog",
+                   "settle", "report"],
+    "type-or-paste": ["main: New table", "press: ColortableEditorDialog / Type or paste stops…",
+                      "paste: AddColortableDialog", "press: AddColortableDialog / Use these stops",
+                      "gone: AddColortableDialog", "let go: AddColortableDialog", "editor: Save",
+                      "gone: ColortableEditorDialog", "settle", "report"],
 }[sys.argv[1]]
+HERE = Path(sys.argv[2])         # the test's folder: paste.txt to paste, saved/ for the files saved
 state = {"step": 0, "waited": 0, "turns": 0}
-editors = []                     # every editor seen, to tell that a closed one was let go
+seen = []                        # (kind, weakref): every window the program opened, to tell it was let go
+errors = []                      # what went wrong in the program's own handlers
+
+
+def caught(kind, value, tb):
+    # an error in one of the program's handlers: Qt prints it and carries on, so it is kept
+    # here, and the steps stop (tick)
+    errors.append("".join(traceback.format_exception(kind, value, tb)))
+    sys.__excepthook__(kind, value, tb)
+
+
+sys.excepthook = caught
+
+
+def windows():
+    """The windows on screen. topLevelWidgets() can raise on a window just deleted; the
+    step is then tried again next turn (tick)."""
+    return [w for w in QApplication.topLevelWidgets() if w.isVisible()]
 
 
 def shown(kind):
-    return [w for w in QApplication.topLevelWidgets() if type(w).__name__ == kind and w.isVisible()]
+    return [w for w in windows() if type(w).__name__ == kind]
+
+
+def track():
+    """Note every window the program made that is on screen now, but the main window, to
+    tell later that it was let go. The pop-ups and save windows Qt makes itself are Qt's to
+    let go."""
+    for window in windows():
+        if (Shiboken.createdByPython(window) and not isinstance(window, QMainWindow)
+                and not any(ref() is window for _kind, ref in seen)):
+            seen.append((type(window).__name__, weakref.ref(window)))
 
 
 def press(do):
     QTimer.singleShot(0, do)     # from the event loop, as a click comes; not inside this step
+
+
+def words(text):
+    """A button's words as a person reads them: no & before its key, no count after it."""
+    return re.sub(r" \(\d+\)$", "", text.replace("&", ""))
 
 
 def report():
@@ -946,38 +1010,101 @@ def report():
     store = folder / "colortables.json"
     tables = [t["name"] for t in json.loads(store.read_text(encoding="utf-8"))] if store.exists() else []
     gc.collect()
+    kinds = [kind for kind, _ref in seen]
+    kept = [kind for kind, ref in seen if ref() is not None]
     print("REPORT " + json.dumps({"drafts": drafts, "tables": tables, "main_window": len(shown("MainWindow")),
-                                  "editors_seen": len(editors),
-                                  "editors_kept": sum(ref() is not None for ref in editors)}), flush=True)
+                                  "seen": {k: kinds.count(k) for k in sorted(set(kinds))},
+                                  "kept": {k: kept.count(k) for k in sorted(set(kept))},
+                                  "errors": errors}), flush=True)
 
 
 def step(what, arg):
     if what == "recovery":
-        windows = shown("DraftRecoveryDialog")
-        if windows:
-            row = next(iter(windows[0].rows.values()))
+        found = shown("DraftRecoveryDialog")
+        if found:
+            row = next(iter(found[0].rows.values()))
             press((row.open_btn if arg == "Open" else row.discard_btn).click)
-        return bool(windows)
+        return bool(found)
     if what == "editor":
-        windows = shown("ColortableEditorDialog")
-        if windows:
-            editors.append(weakref.ref(windows[0]))
-            press(windows[0].save_btn.click if arg == "Save" else windows[0].reject)
-        return bool(windows)
+        found = shown("ColortableEditorDialog")
+        if found:
+            press(found[0].save_btn.click if arg == "Save" else found[0].reject)
+        return bool(found)
+    if what == "press":          # a window's button, by its words: waited for until it can be pressed
+        kind, _, text = arg.partition(" / ")
+        for window in shown(kind):
+            for button in window.findChildren(QPushButton):
+                if words(button.text()) == text and button.isVisible() and button.isEnabled():
+                    press(button.click)
+                    return True
+        return False
     if what == "ask":
-        boxes = [w for w in QApplication.topLevelWidgets() if isinstance(w, QMessageBox) and w.isVisible()]
+        boxes = [w for w in windows() if isinstance(w, QMessageBox)]
         if boxes:
             # clicked here and now: a pop-up's button clicked from a timer later was found
             # deleted (a pop-up only closes, so the step waits on nothing)
             boxes[0].button(getattr(QMessageBox.StandardButton, arg)).click()
         return bool(boxes)
     if what == "main":
-        windows = shown("MainWindow")
-        if windows:
-            press(windows[0].new_action.trigger)
-        return bool(windows)
+        found = shown("MainWindow")
+        if found:
+            press(found[0].new_action.trigger)
+        return bool(found)
+    if what == "right-click":    # on the row of the table `arg`, in the main window's list
+        for window in shown("MainWindow"):
+            listed = window.panel.table_list
+            for i in range(listed.topLevelItemCount()):
+                if listed.topLevelItem(i).text(0) == arg:
+                    spot = listed.visualItemRect(listed.topLevelItem(i)).center()
+                    press(lambda: listed.customContextMenuRequested.emit(spot))
+                    return True
+        return False
+    if what == "menu":           # chosen with the keyboard, here and now: a menu only closes
+        for menu in windows():
+            if isinstance(menu, QMenu):
+                for action in menu.actions():
+                    if action.text() == arg and action.isEnabled():
+                        menu.setActiveAction(action)
+                        QApplication.sendEvent(menu, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return,
+                                                               Qt.KeyboardModifier.NoModifier))
+                        return True
+        return False
+    if what == "version":        # chosen in the History window's list
+        for window in shown("ColortableHistoryDialog"):
+            for row, version in enumerate(window.versions):
+                if version.label == arg:
+                    window.version_list.setCurrentRow(row)
+                    return True
+        return False
+    if what == "tick":
+        kind, _, text = arg.partition(" / ")
+        for window in shown(kind):
+            for box in window.findChildren(QCheckBox):
+                if words(box.text()) == text and box.isEnabled():
+                    box.setChecked(True)
+                    return True
+        return False
+    if what == "paste":          # paste.txt, into the window's box for text
+        for window in shown(arg):
+            window.findChild(QPlainTextEdit).setPlainText((HERE / "paste.txt").read_text(encoding="utf-8"))
+            return True
+        return False
+    if what == "saved":          # the Import window has saved what it read
+        return any(window.saved_names for window in shown(arg))
+    if what == "save as":        # the save window (Qt's own, off screen), answered here and now: it only closes
+        for window in windows():
+            if isinstance(window, QFileDialog):
+                window.setDirectory(str(HERE / "saved"))
+                # typed into its File name box (selectFile leaves the box alone while it has the keyboard)
+                window.findChild(QLineEdit, "fileNameEdit").setText(arg)
+                window.accept()
+                return True
+        return False
     if what == "gone":
         return not shown(arg)
+    if what == "let go":         # every window of this kind seen so far: deleted, its memory back
+        gc.collect()
+        return all(ref() is None for kind, ref in seen if kind == arg)
     if what == "settle":         # a few turns of the event loop: what was let go is deleted by now
         state["turns"] += 1
         return state["turns"] > 5
@@ -991,8 +1118,17 @@ def step(what, arg):
 def tick():
     if state["step"] >= len(STEPS):
         return
+    if errors:                   # what the steps wait for next would never come
+        print("FAILED at " + STEPS[state["step"]], flush=True)
+        QApplication.exit(4)
+        return
     what, _, arg = STEPS[state["step"]].partition(": ")
-    if step(what, arg):
+    try:
+        track()
+        done = step(what, arg)
+    except RuntimeError:         # a window deleted as it was looked at: tried again next turn
+        done = False
+    if done:
         state["step"] += 1
         state["waited"] = 0
         return
@@ -1022,14 +1158,21 @@ sys.exit(code)
 
 def _as_a_person(tmp_path, scenario):
     """Colortable Editor started for real (not a smoke run) and used through `scenario`
-    (_PERSON's STEPS); what it left behind."""
+    (_PERSON's STEPS); what it left behind. It pastes tmp_path/paste.txt where a step says
+    to, and saves files into tmp_path/saved. Whatever the scenario, the program ran to the
+    end without an error, its main window still shown, and every window it opened was let
+    go once closed."""
     env = _smoke_env(tmp_path)
     env.pop("COLORTABLE_EDITOR_SMOKE")
-    run = subprocess.run([sys.executable, "-X", "faulthandler", "-c", _PERSON, scenario], cwd=ROOT, env=env,
-                         capture_output=True, text=True, encoding="utf-8", timeout=180)
+    (tmp_path / "saved").mkdir(exist_ok=True)
+    run = subprocess.run([sys.executable, "-X", "faulthandler", "-c", _PERSON, scenario, str(tmp_path)], cwd=ROOT,
+                         env=env, capture_output=True, text=True, encoding="utf-8", timeout=180)
     said = f"exit code {run.returncode}\n{run.stdout[-2000:]}\n{run.stderr[-6000:]}"
     assert run.returncode == 0 and "EXIT 0" in run.stdout, said
-    return json.loads(next(line for line in run.stdout.splitlines() if line.startswith("REPORT "))[7:])
+    report = json.loads(next(line for line in run.stdout.splitlines() if line.startswith("REPORT "))[7:])
+    assert report["errors"] == [] and report["main_window"] == 1, said
+    assert report["kept"] == {}, report
+    return report
 
 
 def _left_over(tmp_path):
@@ -1041,31 +1184,116 @@ def test_discard_at_start_throws_the_table_away_and_the_program_carries_on(tmp_p
     _left_over(tmp_path)
     report = _as_a_person(tmp_path, "discard")
     assert report["drafts"] == [] and report["tables"] == []
-    assert report["main_window"] == 1
+    assert report["seen"] == {"DraftRecoveryDialog": 1}
 
 
 def test_open_at_start_then_save_keeps_the_table(tmp_path):
     _left_over(tmp_path)
     report = _as_a_person(tmp_path, "open-save")
     assert report["drafts"] == [] and report["tables"] == ["left_over"]
-    assert report["main_window"] == 1
-    assert report["editors_seen"] == 1 and report["editors_kept"] == 0
+    assert report["seen"] == {"ColortableEditorDialog": 1, "DraftRecoveryDialog": 1}
 
 
 def test_open_at_start_then_close_without_saving_lets_it_go(tmp_path):
     _left_over(tmp_path)
     report = _as_a_person(tmp_path, "open-close")
     assert report["drafts"] == [] and report["tables"] == []
-    assert report["main_window"] == 1
-    assert report["editors_seen"] == 1 and report["editors_kept"] == 0
+    assert report["seen"] == {"ColortableEditorDialog": 1, "DraftRecoveryDialog": 1}
 
 
 def test_a_closed_editor_is_let_go(tmp_path):
     """Each editor holds its pictures (13 MB for the first sample, far more for a VIIRS one);
     one kept after it closed was memory the program never got back."""
     report = _as_a_person(tmp_path, "new-close")
-    assert report["editors_seen"] == 2 and report["editors_kept"] == 0
-    assert report["drafts"] == [] and report["main_window"] == 1
+    assert report["seen"] == {"ColortableEditorDialog": 2}
+    assert report["drafts"] == []
+
+
+def _saved_twice():
+    """The person's table 'mine', saved and then saved over before the program starts, the
+    way the program saves (into the edition's folder, editor_edition's, which the program is
+    started on): its first colors are kept in History as v1. The stops of each version."""
+    from tcviz import colortable_library
+    first = [(0.0, "#000000"), (0.5, "#808080"), (1.0, "#ffffff")]
+    second = [(0.0, "#000000"), (0.5, "#ff0000"), (1.0, "#ffffff")]
+    colortable_library.save("mine", first, description="first", vmin_c=-90.0, vmax_c=30.0)
+    colortable_library.save("mine", second, original="mine", description="second", vmin_c=-90.0, vmax_c=30.0)
+    return first, second
+
+
+def _stored(tmp_path):
+    """The tables file as the program left it: {name: entry}."""
+    return {t["name"]: t for t in json.loads((tmp_path / "editor" / "colortables.json").read_text(encoding="utf-8"))}
+
+
+def _history(tmp_path):
+    """The kept versions of 'mine', newest first: [(label, stops)]."""
+    kept = json.loads((tmp_path / "editor" / "colortables.history.json").read_text(encoding="utf-8"))
+    return [(v["label"], [tuple(s) for s in v["stops"]]) for v in kept["mine"]]
+
+
+@pytest.mark.parametrize("scenario, windows", [
+    ("history-from-list", {"ColortableEditorDialog": 1, "ColortableHistoryDialog": 1, "QMenu": 1}),
+    ("history-from-editor", {"ColortableEditorDialog": 1, "ColortableHistoryDialog": 1}),
+])
+def test_an_earlier_version_chosen_in_history_is_saved_again(editor_edition, tmp_path, scenario, windows):
+    """History… from the list's right-click menu (Open in the editor) and from the editor's
+    own button (Restore this version): v1 chosen, then saved, is the table again, and the
+    colors it replaced are kept as v2. The right-click menu is let go too: each one used to
+    stay with the list until the program closed (2026-10-03)."""
+    first, second = _saved_twice()
+    report = _as_a_person(tmp_path, scenario)
+    assert report["tables"] == ["mine"] and report["drafts"] == []
+    stored = _stored(tmp_path)["mine"]
+    assert [tuple(s) for s in stored["stops"]] == first and stored["description"] == "first"
+    assert _history(tmp_path) == [("v2", second), ("v1", first)]
+    assert report["seen"] == windows
+
+
+def test_a_table_pasted_into_import_is_saved(tmp_path):
+    """Import…: a table pasted (as Copy for sharing writes one), Read, then Save selected."""
+    stops = [(0.0, "#000000"), (0.5, "#00ff00"), (1.0, "#ffffff")]
+    (tmp_path / "paste.txt").write_text(user_colortables.to_shareable(
+        {"name": "pasted", "stops": stops, "vmin_c": -80.0, "vmax_c": 20.0}), encoding="utf-8")
+    report = _as_a_person(tmp_path, "import")
+    assert report["tables"] == ["pasted"]
+    stored = _stored(tmp_path)["pasted"]
+    assert [tuple(s) for s in stored["stops"]] == stops and (stored["vmin_c"], stored["vmax_c"]) == (-80.0, 20.0)
+    assert report["seen"] == {"ImportDialog": 1}
+
+
+def test_export_and_export_many_write_their_files(editor_edition, tmp_path):
+    """Export… writes the chosen table, Export many… the groups ticked, each through the
+    save window."""
+    _saved_twice()
+    report = _as_a_person(tmp_path, "export")
+    one = (tmp_path / "saved" / "one.txt").read_text(encoding="utf-8")
+    assert "def mine():" in one and "def wv():" not in one
+    many = (tmp_path / "saved" / "many.txt").read_text(encoding="utf-8")
+    assert "def mine():" in many and "def wv():" in many and "def bd05():" not in many
+    assert report["seen"] == {"ExportManyDialog": 1}
+
+
+def test_a_share_card_is_saved_as_a_picture(tmp_path):
+    """The editor's Share card…, then Save card… through the save window: a PNG file."""
+    from PIL import Image
+    report = _as_a_person(tmp_path, "share-card")
+    with Image.open(tmp_path / "saved" / "card.png") as card:
+        assert card.format == "PNG" and card.width > 1000
+    assert report["tables"] == [] and report["drafts"] == []
+    assert report["seen"] == {"ColortableEditorDialog": 1, "ShareCardDialog": 1}
+
+
+def test_stops_typed_or_pasted_go_into_the_editor_and_are_saved(tmp_path):
+    """The editor's Type or paste stops…: a shared table pasted, Use these stops, then Save."""
+    stops = [(0.0, "#000000"), (0.25, "#0000ff"), (0.75, "#ffff00"), (1.0, "#ffffff")]
+    (tmp_path / "paste.txt").write_text(user_colortables.to_shareable(
+        {"name": "typed", "stops": stops, "vmin_c": -85.0, "vmax_c": 25.0}), encoding="utf-8")
+    report = _as_a_person(tmp_path, "type-or-paste")
+    assert report["tables"] == ["typed"] and report["drafts"] == []
+    stored = _stored(tmp_path)["typed"]
+    assert [tuple(s) for s in stored["stops"]] == stops and (stored["vmin_c"], stored["vmax_c"]) == (-85.0, 25.0)
+    assert report["seen"] == {"AddColortableDialog": 1, "ColortableEditorDialog": 1}
 
 
 # --------------------------------------------------------- the windows' layout

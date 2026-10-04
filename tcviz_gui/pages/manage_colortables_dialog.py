@@ -579,9 +579,15 @@ class ManageColortablesDialog(QDialog):
         if item is None:
             return
         menu, actions = self.row_menu(item.data(_NAME, Qt.ItemDataRole.UserRole))
-        chosen = menu.exec(self.table_list.viewport().mapToGlobal(point))
-        if chosen in actions and chosen.isEnabled():
-            actions[chosen]()
+        try:
+            chosen = menu.exec(self.table_list.viewport().mapToGlobal(point))
+            if chosen in actions and chosen.isEnabled():
+                actions[chosen]()
+        finally:
+            # made for this one right-click, and let go once what was chosen is done: kept,
+            # each menu stayed with the list as long as the window did -- in Colortable
+            # Editor, whose main window this is, until the program closed
+            menu.deleteLater()
 
     # ------------------------------------------------------------------ helpers
 
