@@ -1074,7 +1074,8 @@ class ColortableEditorDialog(QDialog):
         self._show_swipe_controls(compare, swipe)
         if not swipe:
             self.picture_pane.set_swipe(None)
-        if source is None:
+        if source is None or self._loading:
+            # (an edit while another picture is read leaves the words, not the picture before it)
             message = "Loading the picture…" if self._loading else "No picture."
             self.picture_pane.set_message(message)
             self.compare_pane.set_message(message)
@@ -1561,9 +1562,13 @@ class ColortableEditorDialog(QDialog):
 
     def open_storm(self, sample_id):
         """Show bundled sample `sample_id` on its own: One storm, with it in the Picture box
-        (a double-click on a storm of the grid). Whether it is shown."""
-        if not self.show_sample(sample_id):
+        (a double-click on a storm of the grid), read in the background as one chosen there
+        is. Whether it is shown, or being read to be."""
+        choice = f"bundled:{sample_id}"
+        if sample_id not in self._bundled:
             return False
+        if choice != self._picture_choice or self._preview is None:
+            self._load_bundled(choice)
         self.set_view("one")
         self._say(f"Showing {self._bundled[sample_id].label} on its own. Several storms shows the grid again.")
         return True
@@ -1645,7 +1650,9 @@ class ColortableEditorDialog(QDialog):
         if not choice or choice == self._picture_choice:
             return
         what, value = choice.split(":", 1)
-        if what in ("sample", "bundled"):
+        if what == "bundled":
+            self._load_bundled(choice)
+        elif what == "sample":
             self._load_choice(choice)
         elif what in ("recent", "file"):
             self._load_file(value, choice)
@@ -1668,7 +1675,10 @@ class ColortableEditorDialog(QDialog):
         return f"sample:{kind}"
 
     def _load_choice(self, choice):
-        """Show a sample: "sample:<kind>" (tcviz's own) or "bundled:<id>"."""
+        """Show a sample now: "sample:<kind>" (tcviz's own) or "bundled:<id>" -- read here, on
+        the window's own thread (a picture chosen in the Picture box is read in the
+        background instead: _load_bundled)."""
+        self._job = next(self._jobs)        # a picture still being read in the background is not wanted now
         what, value = choice.split(":", 1)
         if what == "bundled":
             sample = self._bundled.get(value)
@@ -1686,6 +1696,7 @@ class ColortableEditorDialog(QDialog):
         self._load_sample(value)
 
     def _load_sample(self, kind):
+        self._job = next(self._jobs)
         try:
             self._preview = colortable_preview.load_sample(kind)
         except (OSError, ValueError) as e:
@@ -1698,13 +1709,45 @@ class ColortableEditorDialog(QDialog):
     def _load_file(self, path, choice):
         """Open a saved picture in the background: a big one takes a moment to read."""
         from tcviz_gui.worker import run_in_background
-        self._loading = path
+        self._start_loading(path, choice)
+        run_in_background(_load_picture_job, path, str(_output_dir()), self._job,
+                          on_finished=self._on_picture_loaded, on_failed=self._on_picture_failed)
+
+    def _load_bundled(self, choice):
+        """A bundled sample chosen in the Picture box, read in the background: a VIIRS or SGLI
+        one takes about a second to unpack, which held the whole window still."""
+        from tcviz_gui.worker import run_in_background
+        sample = self._bundled.get(choice.split(":", 1)[1])
+        if sample is None:
+            self._load_choice(choice)       # says it can't be opened
+            return
+        self._start_loading(choice, choice)
+        run_in_background(_load_bundled_job, sample, self._job, on_finished=self._on_bundled_loaded,
+                          on_failed=self._on_picture_failed)
+
+    def _start_loading(self, what, choice):
+        self._loading = what
         self._job = next(self._jobs)
         self.picture_pane.set_message("Loading the picture…")
         self.compare_pane.set_message("Loading the picture…")
         self._pending_choice = choice
-        run_in_background(_load_picture_job, path, str(_output_dir()), self._job,
-                          on_finished=self._on_picture_loaded, on_failed=self._on_picture_failed)
+        at = self.picture_combo.findData(choice)
+        if at >= 0:
+            # the Picture box names it at once (as it does a picture chosen in it)
+            self.picture_combo.blockSignals(True)
+            self.picture_combo.setCurrentIndex(at)
+            self.picture_combo.blockSignals(False)
+
+    def _on_bundled_loaded(self, result):
+        job, source, why = result
+        if job != self._job:
+            return                  # a picture asked for before the latest one
+        self._loading = None
+        self._picture_choice = self._pending_choice
+        self._preview = source
+        if why is not None:
+            self._say(f"The sample picture could not be opened ({why}).")
+        self._after_picture()
 
     def _on_picture_loaded(self, result):
         job, source = result
@@ -1717,6 +1760,8 @@ class ColortableEditorDialog(QDialog):
         self._after_picture()
 
     def _on_picture_failed(self, message):
+        if self._loading is None:
+            return                  # a picture shown since: this one is not wanted any more
         self._loading = None
         self._say(f"That picture could not be opened: {message}")
         self._after_picture()
@@ -1992,6 +2037,15 @@ class ColortableEditorDialog(QDialog):
 def _load_picture_job(path, root, job):
     """Runs on a background thread: one saved picture, ready to preview."""
     return job, colortable_preview.load_picture(path, root=root)
+
+
+def _load_bundled_job(sample, job):
+    """Runs on a background thread: a bundled sample, ready to preview -- (job, the picture,
+    None), or (job, None, why it can't be opened)."""
+    try:
+        return job, colortable_preview.load_bundled(sample), None
+    except (OSError, ValueError) as e:
+        return job, None, str(e)
 
 
 def _output_dir():

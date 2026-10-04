@@ -7,11 +7,42 @@ water-vapor color table stop by stop, and see it on a real storm as you go: the 
 tops around an eye, the rain bands, the dry slots in water vapor. When you like it, send it
 to a friend as a file or as a few lines of text to paste.
 
-![The main window: your tables first, then the six built-in ones](docs/main-window.png)
+It works offline: it never connects to the internet, needs no account, and keeps everything
+on your own computer.
 
 ![The editor: a copy of a built-in table, drawn on Hurricane Melissa](docs/editor.png)
 
+## What it can do
+
+**Build a table on a real storm.** The program comes with 23 real satellite pictures of
+storms (below). Point at the picture to read the temperature there, and click it to choose
+the stop that colors that spot.
+
+**Try it on several storms at once.** Several storms shows your table on the storms you
+choose, every one changing as you edit. Click one to bring it to the front.
+
+![Several storms: Hurricane Polo in front, the others beside it](docs/several-storms.png)
+
+**Compare two tables.** Compare with puts another table beside yours, or, with Swipe ticked,
+on the same picture: drag the line across to see where they differ.
+
+![Swipe: your table left of the line, bd05 right of it](docs/swipe.png)
+
+**Look up close.** Zoom in to see every pixel: the VIIRS pictures have 375-meter pixels.
+
 ![A 375-meter VIIRS picture, zoomed in on the eye](docs/viirs.png)
+
+**Share it.** Share card… makes one picture to post: your table's name, its color scale and
+the storm drawn with it. Copy for sharing and Export… send the table itself, and Import…
+brings in the ones your friends send.
+
+<img src="docs/share-card.png" width="420" alt="A share card: the table, its color scale and Hurricane Melissa">
+
+**Never lose your work.** Each save keeps the version it replaces (History…), deleted tables
+can be restored, and changes you hadn't saved are offered back if the program closes
+unexpectedly.
+
+![The main window: your tables first, then the six built-in ones](docs/main-window.png)
 
 ## Download
 
@@ -48,6 +79,9 @@ stay.
 
 If it won't start, open a terminal in its folder and run
 `./ColortableEditor-x86_64.AppImage --appimage-extract-and-run`.
+
+For a new version, replace the old AppImage with the new one; your own tables are kept
+elsewhere (below), so they stay.
 
 ## How to use
 

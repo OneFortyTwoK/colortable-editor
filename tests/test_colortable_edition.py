@@ -403,6 +403,17 @@ def test_built_in_tables_are_copied_not_changed(qapp, editor_edition):
 
 # ------------------------------------------------------------- the picture box
 
+def _wait_for(qapp, until, seconds=20):
+    import time
+
+    from PySide6.QtCore import QEventLoop
+    deadline = time.monotonic() + seconds
+    while not until() and time.monotonic() < deadline:
+        qapp.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
+        time.sleep(0.01)
+    assert until()
+
+
 def test_the_picture_box_lists_the_bundled_samples(qapp, editor_edition, monkeypatch):
     from tcviz_gui.pages.colortable_editor_dialog import ColortableEditorDialog
     manifest = _manifest(editor_edition["editor"].parent / "samples", SAMPLES)
@@ -414,8 +425,10 @@ def test_the_picture_box_lists_the_bundled_samples(qapp, editor_edition, monkeyp
     assert d.picture_combo.itemData(0, 3) == SAMPLES[0]["description"]          # Qt.ToolTipRole
     assert d.picture_note.text().startswith(SAMPLES[0]["description"] + "\nPicture: NOAA GOES-19.")
     assert d._preview.full_shape == (40, 40) and not d._preview.water_vapor
-    d._on_picture_combo(1)
-    assert d.picture_combo.currentData() == "bundled:melissa_wv" and d._preview.water_vapor
+    d._on_picture_combo(1)                      # read in the background, the box naming it at once
+    assert d.picture_combo.currentData() == "bundled:melissa_wv" and d.picture_pane.message == "Loading the picture…"
+    _wait_for(qapp, lambda: d._loading is None)
+    assert d._picture_choice == "bundled:melissa_wv" and d._preview.water_vapor
     d.set_kind("wv")                                        # a water-vapor table opens on its own sample
     assert d.picture_combo.currentData() == "bundled:melissa_wv"
     d.undo_stack.setClean()
@@ -697,6 +710,8 @@ def test_several_storms_shows_the_table_on_several_storms_at_once(qapp, editor_e
     assert g.front is None and not g.back_btn.isEnabled()
     # a double-click: the storm on its own
     assert g.open_storm("melissa_wv") and d.view() == "one" and d.picture_combo.currentData() == "bundled:melissa_wv"
+    wait(lambda: d._loading is None)
+    assert d._picture_choice == "bundled:melissa_wv"
     assert d.set_view("several")
     d._ask_save_path = lambda suggested: str(tmp_path / "storms.png")
     assert g.save_grid()
