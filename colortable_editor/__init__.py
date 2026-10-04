@@ -9,7 +9,7 @@ a folder of its own. Start it with `python -m colortable_editor`.
 
 Importing this package changes nothing; only colortable_editor.__main__ switches the edition.
 """
-__version__ = "1.1.0"
+__version__ = "1.0.0"
 
 APP_NAME = "Colortable Editor"
 AUTHOR = "OneFortyTwoK"
