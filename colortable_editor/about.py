@@ -38,12 +38,14 @@ HOW_TO_USE = [
      "picture and Save picture… keep the whole picture in your table (or, with Swipe ticked, split where "
      "the line is)."),
     ("Several storms at once",
-     "Other storms… opens a window beside the editor with your table on several storms at once. Tick the "
-     "storms you want in its list: at first, the first six of your table's kind are ticked, and what you tick "
-     "is kept for next time. The storms of the other kind (water vapor, for an infrared table) are listed "
-     "after them. The pictures change as you edit; click one to open it in the editor. Copy grid and Save "
-     "grid… keep the storms ticked as one picture with the table's color scale, and Share card… makes a card "
-     "of them to post."),
+     "Press Several storms, above the picture, to see your table on several storms at once, all changing as "
+     "you edit; One storm goes back to the one picture. Storms… chooses the storms: at first, the first six of "
+     "your table's kind are ticked, and what you tick is kept for next time, as is the view you leave the "
+     "editor in. The storms of the other kind (water vapor, for an infrared table) are listed after them. The "
+     "storms work like the one picture: point at one to read its temperature, click it to choose the stop that "
+     "colors that spot, and Shift-click to add a stop there. Double-click a storm to see it on its own. Copy "
+     "grid and Save grid… keep the storms shown as one picture with the table's color scale, and Share card… "
+     "makes a card of them to post."),
     ("More room for the picture",
      "Drag the divider between the color panel and the picture to the left to fold the color panel away; "
      "drag it back, or double-click it, to bring the panel back. The windows open the size you leave them. "
@@ -81,8 +83,8 @@ def kept_files_text(mark=""):
     return (f"Your tables are in {name('colortables.json')} in that folder, your starred tables in "
             f"{name('favorite_palettes.json')}, the recently deleted ones in {name('colortables.deleted.json')}, "
             f"the earlier versions of your tables (History) in {name('colortables.history.json')}, and how you "
-            "left the windows (their size, whether the color panel is folded away, and the storms ticked under "
-            f"Other storms) in {name('layout.json')}. "
+            "left the windows (their size, whether the color panel is folded away, one storm or several, and the "
+            f"storms ticked under Storms…) in {name('layout.json')}. "
             f"Changes not yet saved wait in the {name('drafts')} folder there while a table is open in the "
             "editor, and until you save or discard them if the program closed unexpectedly.")
 

@@ -1894,18 +1894,24 @@ class HelpPopup(QFrame):
 
     def show_under(self, widget):
         """Open just below `widget`, right edges together, kept on the screen."""
-        self.adjustSize()
-        corner = widget.mapToGlobal(widget.rect().bottomRight())
-        x, y = corner.x() - self.width() + 1, corner.y() + 3
-        screen = widget.screen()
-        if screen is not None:
-            room = screen.availableGeometry()
-            x = max(room.left(), min(x, room.right() - self.width() + 1))
-            if y + self.height() > room.bottom() + 1:
-                # no room below: above it instead
-                y = max(room.top(), widget.mapToGlobal(widget.rect().topLeft()).y() - self.height() - 3)
-        self.move(x, y)
-        self.show()
+        show_popup_under(self, widget)
+
+
+def show_popup_under(popup, widget):
+    """Open `popup` (a pop-up window) just below `widget`, right edges together, kept on
+    the screen -- above the widget when there is no room below it."""
+    popup.adjustSize()
+    corner = widget.mapToGlobal(widget.rect().bottomRight())
+    x, y = corner.x() - popup.width() + 1, corner.y() + 3
+    screen = widget.screen()
+    if screen is not None:
+        room = screen.availableGeometry()
+        x = max(room.left(), min(x, room.right() - popup.width() + 1))
+        if y + popup.height() > room.bottom() + 1:
+            # no room below: above it instead
+            y = max(room.top(), widget.mapToGlobal(widget.rect().topLeft()).y() - popup.height() - 3)
+    popup.move(x, y)
+    popup.show()
 
 
 def measure_afresh(window):

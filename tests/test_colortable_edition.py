@@ -637,12 +637,13 @@ def test_share_card_makes_one_picture_of_the_table_and_the_storm(qapp, editor_ed
     d.deleteLater()
 
 
-def test_other_storms_shows_the_table_on_several_storms_at_once(qapp, editor_edition, tmp_path, monkeypatch):
-    """Other storms… in the edition: the storms of the table's kind ticked, the water-vapor
-    ones listed after them; each drawn in the table exactly (water vapor at 0 to -90 °C),
-    read on a background thread; what is ticked kept in the edition's own layout.json; a
-    storm shown in the editor on a click; Save grid… writing one picture of them all; and
-    How to use saying how."""
+def test_several_storms_shows_the_table_on_several_storms_at_once(qapp, editor_edition, tmp_path, monkeypatch):
+    """Several storms in the edition: the storm grid in the picture's place, the storms of
+    the table's kind ticked under Storms…, the water-vapor ones listed after them; each drawn
+    in the table exactly (water vapor at 0 to -90 °C), read on a background thread; what is
+    ticked, and the view, kept in the edition's own layout.json; a click on a storm choosing
+    the stop that colors it; a double-click showing it on its own; Save grid… writing one
+    picture of them all; and How to use saying how."""
     import time
 
     from matplotlib.colors import Normalize
@@ -652,7 +653,7 @@ def test_other_storms_shows_the_table_on_several_storms_at_once(qapp, editor_edi
     from colortable_editor import about
     from tcviz import colorize, colortable_preview, window_layout
     from tcviz_gui.pages import colortable_editor_dialog
-    from tcviz_gui.pages.storm_grid_dialog import StormGridDialog
+    from tcviz_gui.storm_grid import StormGrid
     manifest = _manifest(editor_edition["editor"].parent / "samples", SAMPLES)
     monkeypatch.setattr(edition, "samples_manifest_path", lambda: manifest)
     monkeypatch.setattr(colortable_editor_dialog, "_last_save_folder", None)
@@ -665,9 +666,10 @@ def test_other_storms_shows_the_table_on_several_storms_at_once(qapp, editor_edi
         assert until()
 
     d = colortable_editor_dialog.ColortableEditorDialog()
-    assert d.storm_grid_btn.text() == "Other storms…" and d.storm_grid_btn.isEnabled()
-    g = d.open_storm_grid()
-    assert isinstance(g, StormGridDialog) and g.isVisible()
+    assert d.view() == "one" and d.several_storms_btn.text() == "Several storms" and d.several_storms_btn.isEnabled()
+    assert d.set_view("several") and d.view() == "several"
+    g = d.storm_grid
+    assert isinstance(g, StormGrid) and g.isVisibleTo(d) and not d.one_page.isVisibleTo(d)
     assert g.ticked() == ["melissa_ir"] and list(g.checks) == ["melissa_ir", "melissa_wv"]
     g.checks["melissa_wv"].setChecked(True)
     wait(lambda: not g.busy())
@@ -677,19 +679,24 @@ def test_other_storms_shows_the_table_on_several_storms_at_once(qapp, editor_edi
                                      ("melissa_wv", (colortable_preview.WV_VMAX_K, colortable_preview.WV_VMIN_K))):
         values = colortable_preview.load_bundled(d._bundled[sample_id]).full
         want = colorize.rgba(values, cmap.with_extremes(bad="black"), Normalize(vmin=bottom, vmax=top))
-        assert np.array_equal(g.cell(sample_id).picture.rgba, want), sample_id
+        assert np.array_equal(g.cell(sample_id).pane.rgba(), want), sample_id
     assert window_layout.get("storm_grid") == {"ir": ["melissa_ir", "melissa_wv"]}
+    assert window_layout.get("editor") == {"view": "several"}
     assert _files_under(editor_edition["editor"]) == ["layout.json"]
-    assert g.open_in_editor("melissa_wv") and d.picture_combo.currentData() == "bundled:melissa_wv"
+    # a click on a storm chooses the stop that colors that spot, as on the one picture
+    values = colortable_preview.load_bundled(d._bundled["melissa_ir"]).full
+    g.cell("melissa_ir").pane.clicked.emit(5, 7, False)
+    assert d.selected == d.model.stop_for_value(float(values[5, 7]) - 273.15)
+    # a double-click: the storm on its own
+    assert g.open_storm("melissa_wv") and d.view() == "one" and d.picture_combo.currentData() == "bundled:melissa_wv"
+    assert d.set_view("several")
     d._ask_save_path = lambda suggested: str(tmp_path / "storms.png")
     assert g.save_grid()
     wait(lambda: g.last_handover is not None and not g.busy())
-    assert g.status.text().startswith("Saved the grid, ")
+    assert d.status.text().startswith("Saved the grid, ")
     with Image.open(tmp_path / "storms.png") as image:
         assert image.size == g.card.size and image.width <= 2400
-    assert "Other storms…" in about.how_to_use_text()
-    g.close()
-    assert window_layout.get("storm_grid")["size"] == [g.width(), g.height()]
+    assert "Several storms" in about.how_to_use_text()
     # tcviz's own places were never touched
     assert not editor_edition["tcviz_store"].parent.exists()
     d.undo_stack.setClean()

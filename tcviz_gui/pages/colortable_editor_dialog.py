@@ -47,10 +47,17 @@ Share card… makes one picture to post of what is shown -- the title, each tabl
 scale and the storm drawn with it, the storm's title and data line under it
 (tcviz.share_card) -- in a window of its own (share_card_dialog).
 
-Other storms… opens the storm grid (storm_grid_dialog), a window beside the editor
-that shows the table on several bundled samples at once, the ones ticked in its list. It
-follows every edit: each flush tells it (`drawn`), and it draws its small pictures again a
-moment later. A click on one of them shows that sample here (show_sample).
+One storm and Several storms, above the picture, switch what the picture's place shows
+(set_view): the one picture, which zooms and compares, or the storm grid
+(tcviz_gui.storm_grid), the table on several bundled samples at once -- those ticked under
+its Storms… -- with its own Copy grid, Save grid… and Share card… where the picture's are.
+The grid follows every edit: each flush tells it (`drawn`), and it draws its storms again a
+moment later. Its storms answer the mouse as the one picture does, with the same words
+(spot_for, show_spot, pick_spot), and a double-click shows one of them as the one picture
+(open_storm). Compare with and Swipe wait, greyed, while the grid is shown. The view chosen
+is remembered with the window's layout. The switch's row costs the window no height: the
+pictures give it some of their least height (_give_panes_room), and the column of buttons
+beside one picture lost the grid's own button.
 
 The picture is redrawn through tcviz.colortable_preview: the table row of every pixel is
 worked out once per picture and range, so an edit only looks the colors up again.
@@ -84,9 +91,9 @@ from pathlib import Path
 
 from matplotlib.colors import Normalize
 from PySide6.QtCore import QStandardPaths, Qt, QTimer, Signal
-from PySide6.QtGui import QGuiApplication, QImage, QKeySequence, QShortcut, QUndoCommand, QUndoStack
+from PySide6.QtGui import QGuiApplication, QImage, QKeySequence, QPalette, QShortcut, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (
-    QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
+    QApplication, QBoxLayout, QButtonGroup, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSizePolicy, QSpacerItem, QToolButton,
     QVBoxLayout, QWidget,
 )
@@ -101,6 +108,7 @@ from tcviz_gui.colortable_widgets import (
     ZOOM_STEP, ColorPanel, HelpPopup, PanelSplitter, PicturePane, PictureView, ScalePanel, StopBar, StopListPanel,
     degrees_text, zoom_words,
 )
+from tcviz_gui.storm_grid import StormGrid
 
 _TITLES = {"add": "Add colortable", "edit": "Edit colortable", "copy": "Duplicate colortable"}
 _KINDS = (("ir", "Infrared"), ("wv", "Water vapor"), ("wind", "Winds (knots)"), ("radar", "Radar (dBZ)"))
@@ -139,8 +147,9 @@ def _help(model):
         "the picture to zoom; drag it to move around.",
         "Drag the divider between the color panel and the picture to the left to fold the color panel away "
         "and give the picture more room. Drag it back, or double-click it, to bring the panel back.",
-        "Other storms… shows the table on several storms at once, as you edit. Tick the storms you want there; "
-        "click one to open it here.",
+        "Several storms, above the picture, shows the table on several storms at once as you edit; Storms… "
+        "chooses which. Click a storm to choose the stop that colors that spot, or Shift-click to add a stop; "
+        "double-click it to see it on its own.",
     ))
 # what _edit returns for a change the table would not take
 _REFUSED = object()
@@ -170,16 +179,21 @@ _DEFAULT_SIZE = (1600, 860)
 _LAYOUT_NOTE = "This window opens the size you leave it, with the color panel shown or folded away as you left it."
 _DIVIDER_TIP = ("Drag left to fold the color panel away and give the picture more room; drag it back, or "
                 "double-click, to bring the panel back.")
-# The storm grid's button, and what it says when there are storms of the table's kind to try
-# it on (the bundled samples) and when there are none -- a winds or radar table in tcviz. Two
-# words, not "Try on other storms…": under two pictures compared, the zoom row it ends would
-# then be wider than the picture list's row, and comparing would need a wider window (and
-# beside one picture, bigger fonts would cut it short in the 150-pixel column).
-_GRID_WORDS = "Other storms…"
-_GRID_TIPS = {
-    True: "Try this table on several other storms at once, as you edit. Pick the storms in the window that opens.",
-    False: "There are no other storm pictures to try this kind of table on.",
+# What the picture's place shows (set_view): the one picture, or the storm grid -- and what
+# the switch's two buttons say, and Several storms when there are no storms of the table's
+# kind to try it on (the bundled samples; none for a winds or radar table in tcviz).
+_VIEWS = ("one", "several")
+_VIEW_TIPS = {
+    "one": "See one storm on its own: zoom in on it, and compare it with another table.",
+    "several": "See your table on several storms at once, all redrawn as you edit. Storms… chooses which.",
+    "none": "There are no other storm pictures to try this kind of table on.",
 }
+_COMPARE_TIP = "Show another table, built-in or yours, beside this one on the same picture."
+_SWIPE_TIP = "Show both tables on one picture and drag the line to see where they differ."
+_COMPARE_OFF = "Compare works on one storm at a time."
+# The picture's least height (PicturePane's own least size), of which the pictures give the
+# switch's row its height (_give_panes_room).
+_PANE_LEAST = 220
 
 
 class _Step(QUndoCommand):
@@ -303,7 +317,8 @@ class ColortableEditorDialog(QDialog):
         self._pending_choice = None
         self._compared = (None, None)       # (what it was drawn for, (rows, colors))
         self._shown_kind = self.model.kind
-        self._storm_grid = None             # the Other storms… window, once opened
+        self._view = "one"                  # what the picture's place shows (set_view)
+        self._kept_view = None              # the view the window was left in (_restore_layout)
         # a burst of drag events is drawn once: each schedules this, which runs when the
         # window next has nothing else to do
         self._refresh_timer = QTimer(self)
@@ -319,6 +334,9 @@ class ColortableEditorDialog(QDialog):
         self._searched = False
         self._changed()
         self.flush()
+        if self._kept_view == "several" and self.grid_samples():
+            # as the window was left: the storm grid, its storms read in the background
+            self.set_view("several", remember=False)
         if unreadable:
             self._say("This table's colors could not be read, so the editor starts again from a plain "
                       "black-to-white table. Save replaces the damaged one.")
@@ -409,7 +427,29 @@ class ColortableEditorDialog(QDialog):
         self.color_panel = ColorPanel(self)
 
         self.preview_box = preview_box = QGroupBox("On a real picture")
-        preview_layout = QVBoxLayout(preview_box)
+        self._preview_layout = preview_layout = QVBoxLayout(preview_box)
+        # One storm / Several storms: the one picture or the storm grid in its place, two
+        # buttons side by side, the one shown held down
+        view_row = QHBoxLayout()
+        view_row.setSpacing(0)
+        self._view_group = QButtonGroup(self)
+        self._view_group.setExclusive(True)
+        self._view_buttons = {}
+        for view, words in (("one", "One storm"), ("several", "Several storms")):
+            button = QPushButton(words)
+            button.setCheckable(True)
+            button.setToolTip(_VIEW_TIPS[view])
+            # a click leaves the keyboard where it was, so the arrow keys still move the stop
+            button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+            button.setAutoDefault(False)
+            button.clicked.connect(functools.partial(self._on_view_button, view))
+            self._view_group.addButton(button)
+            self._view_buttons[view] = button
+            view_row.addWidget(button)
+        self.one_storm_btn, self.several_storms_btn = self._view_buttons["one"], self._view_buttons["several"]
+        view_row.addStretch()
+        self.view_row = _wrap(view_row)
+        preview_layout.addWidget(self.view_row)
         choose_row = QHBoxLayout()
         choose_row.addWidget(QLabel("Picture:"))
         self.picture_combo = QComboBox()
@@ -418,14 +458,15 @@ class ColortableEditorDialog(QDialog):
         self.picture_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         choose_row.addWidget(self.picture_combo, 1)
         choose_row.addSpacing(8)
-        choose_row.addWidget(QLabel("Compare with:"))
+        self.compare_label = QLabel("Compare with:")
+        choose_row.addWidget(self.compare_label)
         self.compare_combo = QComboBox()
         self.compare_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.compare_combo.setMinimumContentsLength(12)
-        self.compare_combo.setToolTip("Show another table, built-in or yours, beside this one on the same picture.")
+        self.compare_combo.setToolTip(_COMPARE_TIP)
         choose_row.addWidget(self.compare_combo)
         self.swipe_check = QCheckBox("Swipe")
-        self.swipe_check.setToolTip("Show both tables on one picture and drag the line to see where they differ.")
+        self.swipe_check.setToolTip(_SWIPE_TIP)
         # offered while there is a table to compare with (_redraw)
         self.swipe_check.setVisible(False)
         choose_row.addWidget(self.swipe_check)
@@ -465,10 +506,19 @@ class ColortableEditorDialog(QDialog):
         self.picture_area = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.picture_area.addLayout(panes, 1)
         self.picture_area.addWidget(self._build_picture_controls())
-        preview_layout.addLayout(self.picture_area, 1)
+        # One storm: the pictures, their buttons and the lines under them, in one place
+        # that Several storms swaps for the storm grid
+        self.one_page = QWidget()
+        one_layout = QVBoxLayout(self.one_page)
+        one_layout.setContentsMargins(0, 0, 0, 0)
+        one_layout.addLayout(self.picture_area, 1)
         self.picture_note = QLabel("")
         self.picture_note.setWordWrap(True)
-        preview_layout.addWidget(self.picture_note)
+        one_layout.addWidget(self.picture_note)
+        preview_layout.addWidget(self.one_page, 1)
+        self.storm_grid = StormGrid(self, controls_width=_CONTROLS_WIDTH)
+        preview_layout.addWidget(self.storm_grid, 1)
+        self._show_view()
         # the color panel and the picture, a handle between them: the picture takes all the
         # room the window has to spare, and the color panel's too once it is folded away
         self.body_splitter = PanelSplitter()
@@ -548,6 +598,7 @@ class ColortableEditorDialog(QDialog):
         self.picture_pane.clicked.connect(self.pick_from_picture)
         # a zoom, a drag, a new picture or a new size: the zoom in words follows
         self.picture_pane.shown.connect(self._show_zoom)
+        self._give_panes_room()
         self._restore_layout()
 
     def _build_picture_controls(self):
@@ -589,7 +640,6 @@ class ColortableEditorDialog(QDialog):
         self.share_card_btn = self._picture_button(
             "Share card…", "Make one picture to post: the table's name, its color scale and the storm drawn with it.",
             self.open_share_card)
-        self.storm_grid_btn = self._picture_button(_GRID_WORDS, _GRID_TIPS[True], self.open_storm_grid)
         self.scale_check = QCheckBox("With the color scale")
         self.scale_check.setChecked(True)
         self.scale_check.setToolTip("Put the color scale and the table's name in the copied or saved picture"
@@ -641,23 +691,31 @@ class ColortableEditorDialog(QDialog):
             self._controls_gap.changeSize(0, 0, fixed, fixed)
             self.picture_controls.setMinimumWidth(0)
             self.picture_controls.setMaximumWidth(16777215)
-        # Share card… and Other storms… stand with Copy and Save beside one picture; under
-        # two they end the zoom row, which has room for them: in the copy row they would make
-        # comparing need a wider window
+        # Share card… stands with Copy and Save beside one picture; under two it ends the
+        # zoom row, which has room for it: in the copy row it would make comparing need a
+        # wider window
         for row in (self.zoom_row, self.share_row):
             row.removeWidget(self.share_card_btn)
-            row.removeWidget(self.storm_grid_btn)
         if beside:
-            at = self.share_row.indexOf(self.save_picture_btn) + 1
-            self.share_row.insertWidget(at, self.share_card_btn)
-            self.share_row.insertWidget(at + 1, self.storm_grid_btn)
+            self.share_row.insertWidget(self.share_row.indexOf(self.save_picture_btn) + 1, self.share_card_btn)
         else:
-            self.zoom_row.addWidget(self.storm_grid_btn)
             self.zoom_row.addWidget(self.share_card_btn)
         self.picture_controls.layout().invalidate()
         # the picture compared with was just shown or hidden: the pictures' area is measured
         # again, or the window could take a size for the layout it had (and grow by it)
         colortable_widgets.measure_layout_afresh(self.picture_area)
+
+    def _give_panes_room(self):
+        """The pictures' least height: PicturePane's own, less the One storm / Several
+        storms row above them. The row takes its height from the pictures, so the window
+        needs no more height than it did before the row came: under two pictures compared,
+        and beside one at ordinary font sizes, the pictures set the window's least height;
+        beside one with bigger fonts, the column of buttons does, which the row's height
+        left too (the storm grid's own button, Other storms…, stood there)."""
+        row = self.view_row.sizeHint().height() + max(0, self._preview_layout.spacing())
+        least = max(_PANE_LEAST // 2, _PANE_LEAST - row)
+        for pane in (self.picture_pane, self.compare_pane):
+            pane.setMinimumHeight(least)
 
     @staticmethod
     def _range_spin():
@@ -691,13 +749,15 @@ class ColortableEditorDialog(QDialog):
     def _restore_layout(self):
         """Open as the window was last left (window_layout): its size, made to fit this
         screen, and maximized or not; the color panel folded away or not once it is shown
-        (_restore_panels). With nothing saved, as it first opens."""
+        (_restore_panels); one storm or several (set_view, once the picture is loaded). With
+        nothing saved, as it first opens."""
         kept = window_layout.get(_LAYOUT_KEY)
         room = colortable_widgets.screen_room(self)
         self.resize(*(window_layout.fit_size(kept.get("size"), room) or _default_size(room)))
         # the layout as the window is shown (showEvent): closing keeps it only if it changed
         self._layout_base = None
         self._kept_panels = kept.get("splitter")
+        self._kept_view = kept.get("view") if kept.get("view") in _VIEWS else None
         if kept.get("maximized") is True:
             self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
 
@@ -728,12 +788,14 @@ class ColortableEditorDialog(QDialog):
 
     def reset_layout(self):
         """Reset layout (in the "?"): forget the remembered layouts -- layout.json goes -- and
-        put this window back as it first opens, the color panel shown."""
+        put this window back as it first opens, the color panel shown and one storm in the
+        picture's place."""
         window_layout.reset()
         self._kept_panels = None
         self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMaximized)
         self.resize(*_default_size(colortable_widgets.screen_room(self)))
         self.fold_colors(False)
+        self.set_view("one", remember=False)
         if self._layout_base is not None:
             # back as it first opens is nothing to keep
             self._layout_base = self._layout_record()
@@ -762,17 +824,16 @@ class ColortableEditorDialog(QDialog):
         # first shown: measured as it is now, not as the splitter measured the picture's side
         # while the window was being built (with the picture compared with, hidden since)
         if visible and self._layout_base is None:
+            # (the switch's row measured in the fonts the window is shown with)
+            self._give_panes_room()
             colortable_widgets.measure_afresh(self)
         super().setVisible(visible)
 
     def done(self, result):
         # saved or not, the window's layout is kept as it closes -- and a layout that can't be
-        # kept never keeps the window from closing; the storm grid closes with it, keeping its own
+        # kept never keeps the window from closing
         with contextlib.suppress(Exception):
             self._remember_layout()
-        if self._storm_grid is not None:
-            with contextlib.suppress(Exception):
-                self._storm_grid.close()
         super().done(result)
 
     # ================================================================== the fields
@@ -967,6 +1028,9 @@ class ColortableEditorDialog(QDialog):
         else:
             self._fill_picture_combo()
         self._fill_compare_combo()
+        if self._view == "several" and not self.grid_samples():
+            # a winds or radar table has no storms for the grid: the one picture instead
+            self.set_view("one", remember=False)
 
     def _schedule_refresh(self):
         self._refresh_timer.start()
@@ -985,8 +1049,8 @@ class ColortableEditorDialog(QDialog):
         # a card shows the table drawn: none of a table that can't be
         self.share_card_btn.setEnabled(cmap is not None)
         offered = bool(self.grid_samples())
-        self.storm_grid_btn.setEnabled(offered)
-        self.storm_grid_btn.setToolTip(_GRID_TIPS[offered])
+        self.several_storms_btn.setEnabled(offered)
+        self.several_storms_btn.setToolTip(_VIEW_TIPS["several" if offered else "none"])
         built = self._cmap[1]
         source = self._preview
         if cmap is None:
@@ -998,6 +1062,10 @@ class ColortableEditorDialog(QDialog):
         vmax_d, vmin_d = source.drawing_range(vmax_k, vmin_k) if source else (vmax_k, vmin_k)
         # the units render labels the scale in: C (from Kelvin), kt (from m/s), dBZ
         self.scale_panel.set_scale(cmap, vmax_d, vmin_d, self.model.units)
+        if self._view == "several":
+            # the one picture is out of sight, and drawn again as it comes back (set_view):
+            # an edit draws only the storm grid's storms
+            return
         compare = self.compare_combo.currentData()
         swipe = self.swiping()
         self.compare_pane.holder.setVisible(bool(compare) and not swipe)
@@ -1106,8 +1174,15 @@ class ColortableEditorDialog(QDialog):
         if (source is None or pane.message or pane.full_shape != source.full_shape or pane.stride != source.stride
                 or self.current_cmap() is None):
             return None
-        raw = source.saved_value(row, col)
-        if raw is None:
+        return self.spot_for(source.saved_value(row, col), source)
+
+    def spot_for(self, raw, source):
+        """The PictureSpot of a pixel whose value is `raw` -- in the picture's own units, K,
+        m/s or dBZ -- on picture `source` (a PreviewSource): its value in the table's units,
+        and the value in the table whose color it is drawn in, at the range `source` is
+        drawn at. None for a pixel with no data (`raw` None) and while the table can't be
+        drawn. The one picture's (picture_spot) and the storm grid's storms' alike."""
+        if raw is None or self.current_cmap() is None:
             return None
         _cmap, vmax_k, vmin_k = self._cmap[1]
         m = self.model
@@ -1118,9 +1193,13 @@ class ColortableEditorDialog(QDialog):
         return PictureSpot(value, m.vmin + (raw - vmin_d) / (vmax_d - vmin_d) * m.span)
 
     def _on_picture_hover(self, pixel):
-        spot = None if pixel is None else self.picture_spot(*pixel)
+        self.show_spot(None if pixel is None else self.picture_spot(*pixel))
+
+    def show_spot(self, spot):
+        """The status line reading out `spot` (a PictureSpot), the pixel under the pointer
+        -- or, with None (off the picture, or a pixel with no data), the last message
+        again."""
         if spot is None:
-            # off the picture or on a pixel with no data: the last message again
             self.status.setText(self._said)
             return
         unit = self.model.unit_label
@@ -1146,7 +1225,11 @@ class ColortableEditorDialog(QDialog):
         spot (ColortableModel.stop_for_value), its color then in the color panel -- or, with
         `add` (Shift-click), add a stop at its value in the color already there. Returns
         the stop's id, or None (no data there, or no picture)."""
-        spot = self.picture_spot(row, col)
+        return self.pick_spot(self.picture_spot(row, col), add=add)
+
+    def pick_spot(self, spot, add=False):
+        """A click on a picture, the one or a storm of the grid, where it shows `spot` (a
+        PictureSpot): as pick_from_picture. The stop's id, or None (no data there)."""
         if spot is None:
             return None
         m = self.model
@@ -1420,25 +1503,73 @@ class ColortableEditorDialog(QDialog):
         """The table's name as the pictures carry it: the Name box, or "This table"."""
         return self.name_edit.text().strip() or "This table"
 
-    def open_storm_grid(self):
-        """Other storms…: the storm grid window (storm_grid_dialog), beside the
-        editor, which stays usable -- opened once and shown again after, with the storms it
-        already read. The window, or None when there are no storms to try the table on."""
-        from tcviz_gui.pages.storm_grid_dialog import StormGridDialog
-        if not self.grid_samples():
-            self._say(_GRID_TIPS[False])
-            return None
-        if self._storm_grid is None:
-            self._storm_grid = StormGridDialog(self)
-        window = self._storm_grid
-        window.show()
-        window.raise_()
-        window.activateWindow()
-        return window
+    def view(self):
+        """What the picture's place shows: "one" (One storm, the one picture, which zooms
+        and compares) or "several" (Several storms, the storm grid)."""
+        return self._view
+
+    def set_view(self, view, remember=True):
+        """Show one storm or several in the picture's place: "one" or "several" (_VIEWS).
+        The storm grid shows only with storms to try the table on (grid_samples). The view
+        the person chooses (`remember`) is kept with the window's layout, for next time.
+        Whether it shows that now."""
+        if view not in _VIEWS:
+            raise ValueError(f"view must be one of {_VIEWS}")
+        if view == "several" and not self.grid_samples():
+            self._say(_VIEW_TIPS["none"])
+            self._show_view()
+            return False
+        if remember and view != self._view:
+            window_layout.update(_LAYOUT_KEY, {"view": view})
+        if view != self._view:
+            # a reading of a picture no longer shown goes: the last message again
+            self.status.setText(self._said)
+        self._view = view
+        self._show_view()
+        if view == "several":
+            self.storm_grid.activate()
+        else:
+            # what changed while the grid was shown
+            self.flush()
+        return True
+
+    def _on_view_button(self, view, _checked=False):
+        self.set_view(view)
+
+    def _show_view(self):
+        """The switch, and the picture or the grid, as the view is; Compare with and Swipe
+        greyed while the grid is shown (each keeps what it was set to, for the one picture)."""
+        several = self._view == "several"
+        for view, button in self._view_buttons.items():
+            button.setChecked(view == self._view)
+            # the view shown in the theme's selection colors: the style's own pressed-in
+            # look is barely darker than a button that is not
+            palette = QApplication.palette(button)
+            if view == self._view:
+                palette.setColor(QPalette.ColorRole.Button, palette.color(QPalette.ColorRole.Highlight))
+                palette.setColor(QPalette.ColorRole.ButtonText, palette.color(QPalette.ColorRole.HighlightedText))
+            button.setPalette(palette)
+        self.one_page.setVisible(not several)
+        self.storm_grid.setVisible(several)
+        for widget in (self.compare_label, self.compare_combo, self.swipe_check):
+            widget.setEnabled(not several)
+        self.compare_label.setToolTip(_COMPARE_OFF if several else "")
+        self.compare_combo.setToolTip(_COMPARE_OFF if several else _COMPARE_TIP)
+        self.swipe_check.setToolTip(_COMPARE_OFF if several else _SWIPE_TIP)
+        colortable_widgets.measure_layout_afresh(self._preview_layout)
+
+    def open_storm(self, sample_id):
+        """Show bundled sample `sample_id` on its own: One storm, with it in the Picture box
+        (a double-click on a storm of the grid). Whether it is shown."""
+        if not self.show_sample(sample_id):
+            return False
+        self.set_view("one")
+        self._say(f"Showing {self._bundled[sample_id].label} on its own. Several storms shows the grid again.")
+        return True
 
     def show_sample(self, sample_id):
-        """Show bundled sample `sample_id` in the Picture box, as choosing it there does (a
-        click on a storm in the storm grid). Whether it is shown now."""
+        """Show bundled sample `sample_id` in the Picture box, as choosing it there does.
+        Whether it is shown now."""
         choice = f"bundled:{sample_id}"
         if sample_id not in self._bundled:
             return False
@@ -1507,6 +1638,9 @@ class ColortableEditorDialog(QDialog):
 
     def _on_picture_combo(self, index):
         choice = self.picture_combo.itemData(index)
+        if self._view == "several" and choice:
+            # a picture chosen while the grid is shown is one to see on its own
+            self.set_view("one")
         if not choice or choice == self._picture_choice:
             return
         what, value = choice.split(":", 1)

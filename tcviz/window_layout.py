@@ -3,18 +3,17 @@
 
 tcviz keeps no settings between runs, but for the editor it does (the author's choice,
 2026-10-03): the editor window's size and whether it was maximized, where its panels were
-left (the color panel folded away or not), Colortable Editor's main window size, and the
-storm grid's (the editor's Other storms… window) size and place and the storms ticked in it
-for each kind of table. A window that opens again opens as it was left.
+left (the color panel folded away or not), whether it showed one storm or several (its
+storm grid), Colortable Editor's main window size, and the storms ticked under the storm
+grid's Storms… for each kind of table. A window that opens again opens as it was left.
 
-The file is one JSON object, a record per window under its own key -- "editor",
+The file is one JSON object, a record per window or part under its own key -- "editor",
 "main_window", "storm_grid", and whatever else comes to be remembered (get, update) -- so
-each window reads and writes only its own:
+each reads and writes only its own:
 
-    {"editor": {"size": [1480, 820], "maximized": false, "splitter": [262, 940]},
+    {"editor": {"size": [1480, 820], "maximized": false, "splitter": [262, 940], "view": "several"},
      "main_window": {"size": [900, 560], "maximized": false},
-     "storm_grid": {"ir": ["melissa-2025", "polo-2026-viirs"], "wv": [], "size": [1180, 780],
-                    "position": [120, 80]}}
+     "storm_grid": {"ir": ["melissa-2025", "polo-2026-viirs"], "wv": []}}
 
 It only ever holds how windows were left, never anything a person made, so it is
 forgiving every way: a file that is missing, damaged or cannot be read is no layout (each

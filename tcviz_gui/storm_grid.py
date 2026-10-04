@@ -1,59 +1,70 @@
-"""The storm grid: the table being edited, tried on several storms at once -- the window the
-color table editor's "Other storms…" button opens (ColortableEditorDialog.open_storm_grid).
+"""The storm grid: the table being edited, on several storms at once -- what the color table
+editor shows in place of its one picture in its Several storms view
+(ColortableEditorDialog.set_view).
 
-On the left, the bundled samples (colortable_preview.bundled_samples) the table can be tried
-on, each with a box to tick: those of the table's own kind first, then those of the other
-kind it can be tried on, unticked at first -- an infrared table on the water-vapor storms,
-which are drawn at 0 to -90 °C whatever the table's range, as the editor's Picture box
-draws them (colortable_preview.PICTURE_KINDS, PreviewSource.drawing_range). With nothing
-chosen before, the first six of the table's own kind are ticked; what is ticked is
-remembered for each kind of table, with the window's size and place, in layout.json beside
-the tables (tcviz.window_layout, under "storm_grid": {"ir": [ids], "wv": [ids], "size": [w,
-h], "position": [x, y]}).
+Storms… beside the grid opens a checklist of the bundled samples
+(colortable_preview.bundled_samples) the table can be tried on: those of the table's own
+kind first, then those of the other kind it can be tried on, unticked at first -- an
+infrared table on the water-vapor storms, which are drawn at 0 to -90 °C whatever the
+table's range, as the editor's Picture box draws them (colortable_preview.PICTURE_KINDS,
+PreviewSource.drawing_range). With nothing chosen before, the first six of the table's own
+kind are ticked; what is ticked is remembered for each kind of table in layout.json beside
+the tables (tcviz.window_layout, under "storm_grid": {"ir": [ids], "wv": [ids]}).
 
-On the right, the storms ticked, each a small picture drawn with the table being edited and
-its label under it. They follow every edit: the editor says each time it has drawn (its
-`drawn` signal), and the grid draws itself again at most every REDRAW_MS, so dragging a
-stop stays smooth in the editor's own picture. A click on one shows it in the editor.
+Each storm ticked is a small picture drawn with the table being edited, its name under it,
+as many across as leaves each the most room (best_columns). The storms share whatever room
+the window gives the grid and always fit, however many are ticked, so the grid never needs
+a bigger window than the one picture does (AREA_LEAST). They follow every edit: the editor
+says each time it has drawn (its `drawn` signal), and the grid draws itself again at most
+every REDRAW_MS, so dragging a stop stays smooth.
+
+Each storm answers the mouse as the editor's one picture does -- it is a PicturePane of its
+own, never zoomed: the value under the pointer in the editor's status line, a click to
+choose the stop that colors that spot, Shift-click to add a stop there (through the
+editor's show_spot and pick_spot, so the words are the same). The value is the storm's own
+pixel, read from its thinned values, at the range its colors are drawn at: 0 to -90 °C on a
+water-vapor storm. A double-click shows the storm on its own, as the editor's one picture.
 
 The pictures are drawn as the editor draws its own (colortable_preview): the table row of
 each pixel is worked out once per range (PreviewSource.rows), and an edit is one lookup of
-the table's colors -- so each pixel is exactly the color tcviz gives it. Each storm is read
-on a background thread (tcviz_gui.worker), one at a time, "Loading Polo 2026…" in the line
-under the grid -- a 20 MB VIIRS sample takes about a second to unpack -- and only its
-thinned values are kept (load_cell: at most CELL_PIXELS, about 500 x 500 or 1 MB, where
-the VIIRS picture itself is 60 MB). What was read stays while the window does -- closing
-hides it until the editor closes -- so ticking a storm again draws it at once.
+the table's colors when a storm is next painted -- so each pixel is exactly the color tcviz
+gives it. Each storm is read on a background thread (tcviz_gui.worker), one at a time,
+"Loading Polo 2026…" in the line under the grid -- a 20 MB VIIRS sample takes about a
+second to unpack -- and only its thinned values are kept (load_cell: at most CELL_PIXELS,
+about 500 x 500 or 1 MB, where the VIIRS picture itself is 60 MB). What was read stays for
+the editor's life, so ticking a storm again, or coming back to Several storms, draws it at
+once.
 
-Copy grid, Save grid… and Share card… make one picture of the grid with tcviz.share_card:
-the storms ticked, drawn in the table with its color scale beside them, each with its
-title and data line under it, about 1,900 pixels across. Those are drawn from the saved
-pictures themselves, every pixel exact: read again one at a time on the background thread
-and thinned at once to the size the card shows them at (card_values: share_card.picture_room
-and share_card.fit), so no more than one whole picture is ever held. Copy grid and Save
-grid… hand the grid over as the editor's Copy picture and Save picture do; Share card…
-opens the editor's Share card window with it, its title to change.
+Copy grid, Save grid… and Share card…, beside the grid where the one picture has Copy
+picture, Save picture… and its own Share card…, make one picture of the grid with
+tcviz.share_card: the storms ticked, drawn in the table with its color scale beside them,
+each with its title and data line under it, about 1,900 pixels across. Those are drawn from
+the saved pictures themselves, every pixel exact: read again one at a time on the
+background thread and thinned at once to the size the card shows them at (card_values:
+share_card.picture_room and share_card.fit), so no more than one whole picture is ever
+held. Copy grid and Save grid… hand the grid over as the editor's Copy picture and Save
+picture do, saying how it went in the editor's status line; Share card… opens the editor's
+Share card window with it, its title to change.
 
 A storm whose file is missing or can't be read is left out, and the line under the grid
 says so in plain words.
 """
 import collections
-import contextlib
 import functools
 import itertools
+import math
 from pathlib import Path
 
 from matplotlib.colors import Normalize
-from PySide6.QtCore import QPoint, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPen
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
-    QCheckBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy,
-    QVBoxLayout, QWidget,
+    QCheckBox, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget,
 )
 
 from tcviz import colortable_preview, edition, share_card, window_layout
 from tcviz_gui import colortable_widgets
-from tcviz_gui.pages import colortable_editor_dialog as editor_module
+from tcviz_gui.colortable_widgets import PicturePane
 from tcviz_gui.worker import run_in_background
 
 LAYOUT_RECORD = "storm_grid"
@@ -65,14 +76,20 @@ DEFAULT_TICKED = 6
 # The least time between two drawings of the grid while the table changes: a drag in the
 # editor is drawn there at every step, and here about 25 times a second.
 REDRAW_MS = 40
-_DEFAULT_SIZE = (1180, 780)
-_CELL_LEAST = 150                 # a storm's picture, at the least, across and down
-_PLATE = QColor(*share_card.PLATE)
-_HIGHLIGHT = QColor(42, 130, 218)  # the theme's selection blue: the storm the editor shows
-_TEXT = QColor(220, 220, 220)
+# The least room the storms take, (across, down): less than the one picture and its controls
+# need, so switching to Several storms never makes the editor's least window size bigger.
+AREA_LEAST = (180, 160)
+_GAP = 10                           # between two storms, across and down
+_HIGHLIGHT = QColor(42, 130, 218)   # the theme's selection blue: the storm in the Picture box
+_EDGE = QColor(85, 85, 85)          # a pop-up's edge and fill, as the "?" pop-up has them
+_RAISED = QColor(45, 45, 45)
 _HEADINGS = {"ir": "Infrared storms", "wv": "Water-vapor storms (always drawn from 0 to -90 °C)"}
 _NONE_OFFERED = "There are no storm pictures to try this kind of table on."
-_NONE_TICKED = "Tick a storm on the left to see the table on it."
+_NONE_TICKED = "No storms are ticked. Press Storms… and tick the storms to see your table on."
+_STORMS_TIPS = {
+    True: "Choose the storms to show: tick them in the list that opens. What you tick is kept for next time.",
+    False: _NONE_OFFERED,
+}
 
 Cell = collections.namedtuple("Cell", "sample source saved_shape stride")
 Cell.__doc__ = """One storm of the grid as read: its bundled sample, a PreviewSource of its thinned
@@ -132,9 +149,30 @@ def caption(sample):
     return tuple(line.strip() for line in note.splitlines() if line.strip()) or (sample.label,)
 
 
+def name_lines(sample):
+    """The two lines under a storm in the grid: "Polo 2026" and "NOAA-20 IR" -- its label
+    (colortable_preview's "Polo 2026 · NOAA-20 IR") at its dot, so it fits a narrow cell."""
+    first, _dot, rest = sample.label.partition(" · ")
+    return (first, rest) if rest else (first,)
+
+
 def storm_words(sample):
     """"Polo 2026": the storm and its year, for the line under the grid."""
     return " ".join(str(v) for v in (sample.storm, sample.year) if v) or sample.label
+
+
+def best_columns(count, width, height, caption_height, gap=_GAP):
+    """How many storms across, of `count` in a room `width` x `height` with `caption_height`
+    of name under each: as many as leaves each picture the most room (a storm is about as
+    wide as it is tall) -- of two that leave the same, the fewer across."""
+    count = max(1, count)
+    best, most = 1, -math.inf
+    for cols in range(1, count + 1):
+        rows = math.ceil(count / cols)
+        side = min((width - gap * (cols - 1)) / cols, (height - gap * (rows - 1)) / rows - caption_height)
+        if side > most + 1e-9:
+            best, most = cols, side
+    return best
 
 
 # ------------------------------------------------------------------------ reading (background thread)
@@ -185,197 +223,292 @@ def _job(number, task, sample, room):
 
 # ------------------------------------------------------------------------ one storm on screen
 
-class _CellPicture(QWidget):
-    """A storm's picture, as big as fits, in the middle: a picture drawn smaller than it is
-    smoothed, an enlarged one pixel for pixel, as the editor's picture is. A click on it is
-    `clicked`; before it is drawn, a few words instead."""
+class _CellPane(PicturePane):
+    """A storm's picture in the grid: the editor's picture pane, answering the mouse as the
+    one picture does, but always the whole picture -- the grid's storms always fit, so the
+    wheel zooms nothing -- with a double-click of its own (`double_clicked`), and a frame in
+    the theme's blue while it is the storm in the editor's Picture box (`current`)."""
 
-    clicked = Signal()
+    double_clicked = Signal()
 
     def __init__(self, parent=None):
-        super().__init__(parent)
-        self.rgba = None                # the RGBA bytes on show (the QImage is drawn from them)
-        self.image = None
-        self.message = ""
-        self.current = False            # the storm the editor shows
-        self.drawn_for = None           # the editor's table tuple it was drawn with
-        self._pressed = False
-        self.setMinimumSize(_CELL_LEAST, _CELL_LEAST)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        super().__init__(parent, interactive=True)
+        self.current = False
+        # the grid gives each storm its room (_GridArea): it asks for none of its own
+        self.setMinimumSize(0, 0)
 
-    def sizeHint(self):
-        return QSize(300, 300)
+    def set_current(self, current):
+        if current != self.current:
+            self.current = current
+            self.update()
 
-    def set_rgba(self, rgba, drawn_for):
-        h, w = rgba.shape[:2]
-        self.rgba = rgba
-        self.image = QImage(rgba.data, w, h, 4 * w, QImage.Format.Format_RGBA8888)
-        self.message = ""
-        self.drawn_for = drawn_for
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.update()
+    def wheelEvent(self, event):
+        event.ignore()
 
-    def set_message(self, text):
-        self.rgba = self.image = self.drawn_for = None
-        self.message = text
-        self.unsetCursor()
-        self.update()
-
-    def picture_rect(self):
-        """Where the picture is drawn: as big as fits, in the middle (None without one)."""
-        if self.image is None:
-            return None
-        w, h = self.image.width(), self.image.height()
-        scale = min(self.width() / w, self.height() / h)
-        return QRectF((self.width() - w * scale) / 2, (self.height() - h * scale) / 2, w * scale, h * scale)
-
-    def paintEvent(self, _event):
-        painter = QPainter(self)
-        painter.fillRect(self.rect(), _PLATE)
-        target = self.picture_rect()
-        if target is None:
-            painter.setPen(_TEXT)
-            painter.drawText(QRectF(self.rect()).adjusted(8, 8, -8, -8),
-                             Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, self.message)
-            painter.end()
+    def mouseDoubleClickEvent(self, event):
+        # the press before it was a click, and chose a stop; the second press is no click
+        if event.button() == Qt.MouseButton.LeftButton and not self.message and self.picture_rect() is not None:
+            event.accept()
+            self.double_clicked.emit()
             return
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, target.width() < self.image.width())
-        painter.drawImage(target, self.image)
-        if self.current:
+        super().mouseDoubleClickEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        target = None if self.message else self.picture_rect()
+        if self.current and target is not None:
+            painter = QPainter(self)
             painter.setPen(QPen(_HIGHLIGHT, 3))
             painter.drawRect(target.adjusted(1.5, 1.5, -1.5, -1.5))
-        painter.end()
-
-    def mousePressEvent(self, event):
-        self._pressed = event.button() == Qt.MouseButton.LeftButton and self.image is not None
-        event.accept()
-
-    def mouseReleaseEvent(self, event):
-        if self._pressed and self.rect().contains(event.position().toPoint()):
-            self.clicked.emit()
-        self._pressed = False
-        event.accept()
+            painter.end()
 
 
 class _StormCell(QWidget):
-    """One storm in the grid: its picture, its label under it."""
+    """One storm in the grid: its picture (_CellPane) as big as fits, its name right under
+    it on two lines (name_lines), each cut short with "…" when the cell is too narrow for it
+    -- the storm's title in the name's tooltip -- the two together in the middle of the
+    cell. A double-click on either is `opened`."""
+
+    opened = Signal()
 
     def __init__(self, sample, parent=None):
         super().__init__(parent)
         self.sample = sample
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-        self.picture = _CellPicture(self)
-        layout.addWidget(self.picture, 1)
-        self.caption = QLabel(sample.label)
-        self.caption.setWordWrap(True)
+        self.pane = _CellPane(self)
+        self.pane.double_clicked.connect(self.opened)
+        self.caption = QLabel(self)
         self.caption.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
-        layout.addWidget(self.caption)
-        title = sample.description or sample.label
-        self.setToolTip(f"{title}\nClick to open this storm in the editor.")
+        self.lines = name_lines(sample)
+        self.caption.setToolTip(f"{sample.description or sample.label}\n"
+                                "Double-click the picture to see this storm on its own.")
+        self.place()
+
+    def caption_height(self):
+        return caption_height(self)
+
+    def place(self):
+        """The picture and its name laid out again: for the cell's size, and for the
+        picture's shape once it has one (before that, its few words fill the room)."""
+        w, h = self.width(), self.height()
+        below = min(h, self.caption_height())
+        room = h - below
+        shape = None if self.pane.message else self.pane.full_shape
+        if shape and w > 0 and room > 0:
+            # the picture's own shape, so its name sits right under it, not under a bar
+            scale = min(w / shape[1], room / shape[0])
+            pw, ph = max(1, round(shape[1] * scale)), max(1, round(shape[0] * scale))
+        else:
+            pw, ph = w, room
+        top = (h - ph - below) // 2
+        self.pane.setGeometry((w - pw) // 2, top, pw, ph)
+        self.caption.setGeometry(0, top + ph, w, below)
+        metrics = self.caption.fontMetrics()
+        self.caption.setText("\n".join(metrics.elidedText(line, Qt.TextElideMode.ElideRight, max(0, w))
+                                       for line in self.lines))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.place()
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            event.accept()
+            self.opened.emit()
+            return
+        super().mouseDoubleClickEvent(event)
 
 
-# ------------------------------------------------------------------------ the window
+def caption_height(widget):
+    """The room the two lines of a storm's name take under it, in `widget`'s letters."""
+    return 2 * widget.fontMetrics().lineSpacing() + 4
 
-class StormGridDialog(QDialog):
-    def __init__(self, editor):
-        """`editor` the ColortableEditorDialog it is opened from, whose table it draws."""
-        super().__init__(editor)
+
+class _GridArea(QWidget):
+    """The storms ticked, all the same size, as many across as best_columns says, in the
+    list's order; a few words in the middle while there are none. It asks the window for
+    no more than AREA_LEAST: the storms share what room it gets."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.cells = []
+        self.columns = 1
+        self.message = QLabel("", self)
+        self.message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.message.setWordWrap(True)
+        self.message.hide()
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def minimumSizeHint(self):
+        return QSize(*AREA_LEAST)
+
+    def sizeHint(self):
+        return QSize(640, 440)
+
+    def set_cells(self, cells, message=""):
+        """Show `cells` (_StormCell each), in that order -- or, with none, `message`."""
+        for cell in self.cells:
+            if cell not in cells:
+                cell.hide()
+        self.cells = list(cells)
+        self.message.setText(message)
+        self.message.setVisible(not self.cells)
+        self.place()
+        for cell in self.cells:
+            cell.show()
+
+    def place(self):
+        """Lay the storms out again in the room there is now."""
+        w, h = self.width(), self.height()
+        self.message.setGeometry(12, 12, max(0, w - 24), max(0, h - 24))
+        count = len(self.cells)
+        if not count:
+            return
+        below = caption_height(self)
+        cols = self.columns = best_columns(count, w, h, below)
+        rows = math.ceil(count / cols)
+        across = max(0.0, (w - _GAP * (cols - 1)) / cols)
+        # each row as tall as a picture as wide as a column (or as fits) and its name, the
+        # rows together in the middle: room to spare goes above and below the whole grid,
+        # not between its rows
+        down = max(0.0, min((h - _GAP * (rows - 1)) / rows, across + below))
+        top0 = max(0.0, (h - rows * down - _GAP * (rows - 1)) / 2)
+        for i, cell in enumerate(self.cells):
+            row, col = divmod(i, cols)
+            left, top = round(col * (across + _GAP)), round(top0 + row * (down + _GAP))
+            right, bottom = round(col * (across + _GAP) + across), round(top0 + row * (down + _GAP) + down)
+            cell.setGeometry(left, top, right - left, bottom - top)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.place()
+
+
+class _StormsPopup(QFrame):
+    """Storms…: every storm the grid can show, a box to tick for each under a heading for
+    its kind, in a pop-up that stays until clicked away (as the "?" pop-up does). A tick
+    shows or hides that storm in the grid at once. As tall as the list, or, longer than
+    most of the screen, a list to scroll."""
+
+    def __init__(self, parent):
+        super().__init__(parent, Qt.WindowType.Popup)
+        self.setObjectName("storms_popup")
+        self.setStyleSheet(f"QFrame#storms_popup {{ background-color: {_RAISED.name()}; "
+                           f"border: 1px solid {_EDGE.name()}; }}")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        self.intro = QLabel("Tick the storms to see your table on:")
+        layout.addWidget(self.intro)
+        self.list_widget = QWidget()
+        self.list_layout = QVBoxLayout(self.list_widget)
+        self.list_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setWidget(self.list_widget)
+        layout.addWidget(self.scroll)
+
+    def fit_list(self):
+        """The list as tall as it is, but no taller than most of the screen (it scrolls then)."""
+        self.list_layout.activate()
+        hint = self.list_widget.sizeHint()
+        room = colortable_widgets.screen_room(self)
+        most = int(room[1] * 0.7) if room else 600
+        bar = self.scroll.verticalScrollBar().sizeHint().width() if hint.height() > most else 0
+        self.scroll.setFixedSize(max(hint.width(), self.intro.sizeHint().width()) + bar, min(hint.height(), most))
+
+
+# ------------------------------------------------------------------------ the grid
+
+class StormGrid(QWidget):
+    def __init__(self, editor, controls_width=150, parent=None):
+        """`editor` the ColortableEditorDialog it is part of, whose table it draws;
+        `controls_width` how wide its column of buttons is (as wide as the one picture's)."""
+        super().__init__(parent)
         self.editor = editor
-        self.setModal(False)
-        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self._kind = None
         self._known = {}                # id -> every sample offered so far
         self._groups = []               # offered(...) for the table's kind
         self._ticked = []               # ids ticked, in the list's order
-        self._cells = {}                # id -> Cell read, kept while the window lasts
+        self._cells = {}                # id -> Cell read, kept while the editor lasts
         self._failed = {}               # id -> why it couldn't be read
         self._card_values = {}          # (id, room) -> the values it is drawn from on a card
         self._queue = []                # (task, id, room) waiting to be read, one at a time
         self._running = None            # (job number, task, id, room) being read now
         self._jobs = itertools.count(1)
         self._handover = None           # what Copy grid, Save grid… or Share card… waits for
-        self._widgets = {}              # id -> _StormCell
-        self.checks = {}                # id -> its box in the list
+        self._widgets = {}              # id -> _StormCell, while ticked
+        self.checks = {}                # id -> its box in Storms…
         self._lut = (None, None)        # (the editor's table tuple, its colors)
-        self._note = ""                 # the last thing said, under what is being read
+        self._note = ""                 # the last thing said under the grid, under what is being read
         self._left_now = []             # the storms the grid being handed over lost
-        self._layout_shown = False
         self.card = None                # the grid as last copied or saved (a PIL image)
         self.last_handover = None       # what it was made of (_Handover: its storms, tables, room)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(REDRAW_MS)
         self._timer.timeout.connect(self.redraw)
-        self._build_ui()
-        self._follow_kind()
+        self._build_ui(controls_width)
         editor.drawn.connect(self._schedule)
-        self._restore_layout()
-        self.redraw()
 
-    def _build_ui(self):
+    def _build_ui(self, controls_width):
         layout = QVBoxLayout(self)
-        intro = QLabel("Your table on several storms at once, as you edit it. Tick the storms to show; click one to "
-                       "open it in the editor.")
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-
+        layout.setContentsMargins(0, 0, 0, 0)
         body = QHBoxLayout()
-        self.list_widget = QWidget()
-        self.list_layout = QVBoxLayout(self.list_widget)
-        self.list_layout.setContentsMargins(4, 4, 4, 4)
-        self.list_scroll = QScrollArea()
-        self.list_scroll.setWidgetResizable(True)
-        self.list_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.list_scroll.setWidget(self.list_widget)
-        self.list_scroll.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        body.addWidget(self.list_scroll)
-
-        self.grid_widget = QWidget()
-        self.grid = QGridLayout(self.grid_widget)
-        self.grid.setContentsMargins(4, 4, 4, 4)
-        self.grid.setSpacing(12)
-        self.empty_label = QLabel("")
-        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.setWordWrap(True)
-        grid_scroll = QScrollArea()
-        grid_scroll.setWidgetResizable(True)
-        grid_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        grid_scroll.setWidget(self.grid_widget)
-        body.addWidget(grid_scroll, 1)
+        self.area = _GridArea()
+        body.addWidget(self.area, 1)
+        self.controls = QWidget()
+        controls = QVBoxLayout(self.controls)
+        controls.setContentsMargins(0, 0, 0, 0)
+        self.storms_btn = self._button("Storms…", _STORMS_TIPS[True], self.open_storms)
+        controls.addWidget(self.storms_btn)
+        # Storms… at the top, the copy buttons at the bottom, as the one picture's zoom and copy buttons stand
+        controls.addItem(QSpacerItem(0, 12, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding))
+        self.copy_btn = self._button(
+            "Copy grid", "Copy the storms shown, drawn in this table with its color scale, as one picture ready to "
+            "paste into a message.", self.copy_grid)
+        self.save_btn = self._button(
+            "Save grid…", "Save the storms shown, drawn in this table with its color scale, as one PNG picture.",
+            self.save_grid)
+        self.share_btn = self._button(
+            "Share card…", "Make a card of the grid to post: a title, the color scale and the storms shown, each "
+            "with its title and data line.", self.open_share_card)
+        for button in (self.copy_btn, self.save_btn, self.share_btn):
+            controls.addWidget(button)
+        self.controls.setFixedWidth(controls_width)
+        body.addWidget(self.controls)
         layout.addLayout(body, 1)
-
         self.status = QLabel("")
         self.status.setWordWrap(True)
+        self.status.hide()              # shown while it has something to say (_show_status)
         layout.addWidget(self.status)
+        self.storms_popup = _StormsPopup(self)
 
-        buttons = QHBoxLayout()
-        self.copy_btn = QPushButton("Copy grid")
-        self.copy_btn.setToolTip("Copy the storms ticked, drawn in this table with its color scale, as one picture "
-                                 "ready to paste into a message.")
-        self.copy_btn.clicked.connect(lambda _checked=False: self.copy_grid())
-        self.save_btn = QPushButton("Save grid…")
-        self.save_btn.setToolTip("Save the storms ticked, drawn in this table with its color scale, as one PNG "
-                                 "picture.")
-        self.save_btn.clicked.connect(lambda _checked=False: self.save_grid())
-        self.share_btn = QPushButton("Share card…")
-        self.share_btn.setToolTip("Make a card of the grid to post: a title, the color scale and the storms ticked, "
-                                  "each with its title and data line.")
-        self.share_btn.clicked.connect(lambda _checked=False: self.open_share_card())
-        close = QPushButton("Close")
-        close.setToolTip("Close this window. The editor stays open, and the storms stay ticked.")
-        # no button is the window's own: Enter in the list hands nothing over
-        for button in (self.copy_btn, self.save_btn, self.share_btn, close):
-            button.setAutoDefault(False)
-        for button in (self.copy_btn, self.save_btn, self.share_btn):
-            buttons.addWidget(button)
-        buttons.addStretch()
-        close.clicked.connect(self.close)
-        buttons.addWidget(close)
-        layout.addLayout(buttons)
+    def _button(self, text, tip, slot):
+        button = QPushButton(text)
+        button.setToolTip(tip)
+        # a click leaves the keyboard where it was, so the arrow keys still move the stop
+        button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        button.setAutoDefault(False)
+        button.clicked.connect(lambda _checked=False: slot())
+        return button
 
-    # ------------------------------------------------------------------ the list
+    def on_show(self):
+        """Whether the grid is what the editor shows (its Several storms view)."""
+        return self.editor.view() == "several"
+
+    def activate(self):
+        """The editor's Several storms: the storms the table's kind is tried on, read if
+        they aren't yet, and drawn with the table as it is now."""
+        if self._kind != self.editor.model.kind:
+            self._follow_kind()
+        else:
+            for sid in self._ticked:
+                self._want("cell", sid)
+            self._pump()
+        self.redraw()
+
+    # ------------------------------------------------------------------ Storms…
 
     def _follow_kind(self):
         """The storms the table's kind is tried on, ticked as last left for that kind."""
@@ -393,8 +526,9 @@ class StormGridDialog(QDialog):
         self._pump()
 
     def _fill_list(self):
-        while self.list_layout.count():
-            widget = self.list_layout.takeAt(0).widget()
+        layout = self.storms_popup.list_layout
+        while layout.count():
+            widget = layout.takeAt(0).widget()
             if widget is not None:
                 # off the list at once: deleteLater alone leaves it showing until the window
                 # next has nothing to do (and a box may be in the middle of saying it toggled)
@@ -405,29 +539,26 @@ class StormGridDialog(QDialog):
         for kind, group in self._groups:
             if len(self._groups) > 1:
                 heading = QLabel(_HEADINGS[kind])
-                heading.setWordWrap(True)
                 font = heading.font()
                 font.setBold(True)
                 heading.setFont(font)
-                self.list_layout.addWidget(heading)
+                layout.addWidget(heading)
             for sample in group:
                 box = QCheckBox(sample.label)
-                box.setToolTip(sample.description or sample.label)
                 box.setChecked(sample.id in self._ticked)
                 box.toggled.connect(self._on_tick)
-                self.list_layout.addWidget(box)
+                layout.addWidget(box)
                 self.checks[sample.id] = box
-            self.list_layout.addSpacing(8)
+            layout.addSpacing(8)
         if not self._groups:
-            none = QLabel(_NONE_OFFERED)
-            none.setWordWrap(True)
-            self.list_layout.addWidget(none)
-        self.list_layout.addStretch()
+            layout.addWidget(QLabel(_NONE_OFFERED))
+        layout.addStretch()
+        self.storms_btn.setEnabled(bool(self._groups))
+        self.storms_btn.setToolTip(_STORMS_TIPS[bool(self._groups)])
         self._show_failed()
 
     def _show_failed(self):
-        """The storms that couldn't be read say so in the list, which is kept as wide as its
-        widest storm's name, so none is cut short."""
+        """The storms that couldn't be read say so in the list."""
         for sid, box in self.checks.items():
             sample = self._known[sid]
             if sid in self._failed:
@@ -436,14 +567,28 @@ class StormGridDialog(QDialog):
             else:
                 box.setText(sample.label)
                 box.setToolTip(sample.description or sample.label)
-        widest = max((box.sizeHint().width() for box in self.checks.values()), default=200)
-        bar = self.list_scroll.verticalScrollBar().sizeHint().width()
-        self.list_scroll.setFixedWidth(widest + bar + 2 * self.list_scroll.frameWidth() + 12)
+        if self.storms_popup.isVisible():
+            self.storms_popup.fit_list()
+            self.storms_popup.adjustSize()
+
+    def open_storms(self):
+        """Storms…: the checklist, in a pop-up under the button."""
+        if self._kind != self.editor.model.kind:
+            self._follow_kind()
+        self.storms_popup.fit_list()
+        colortable_widgets.show_popup_under(self.storms_popup, self.storms_btn)
+        return self.storms_popup
 
     def _on_tick(self, _on):
         self._ticked = [sid for sid, box in self.checks.items() if box.isChecked()]
         remember_ticks(self._kind, self._ticked)
         # a storm unticked keeps its values (ticked again, it is drawn at once), not its rows
+        # nor its picture on screen
+        for sid in [sid for sid in self._widgets if sid not in self._ticked]:
+            widget = self._widgets.pop(sid)
+            widget.hide()
+            widget.setParent(None)
+            widget.deleteLater()
         for sid, cell in self._cells.items():
             if sid not in self._ticked:
                 cell.source.forget_rows()
@@ -459,6 +604,8 @@ class StormGridDialog(QDialog):
 
     def set_ticked(self, ids):
         """Tick exactly the storms `ids` (as clicking their boxes does)."""
+        if self._kind != self.editor.model.kind:
+            self._follow_kind()
         for sid, box in self.checks.items():
             box.blockSignals(True)
             box.setChecked(sid in ids)
@@ -472,94 +619,94 @@ class StormGridDialog(QDialog):
         return [sid for sid in self._ticked if sid not in self._failed]
 
     def columns(self):
-        """How many storms across: as the card lays them out (all of up to three in a row,
-        then about as many across as down)."""
-        return share_card._columns(max(1, len(self.shown_ids())))
+        """How many storms across, as they are laid out now."""
+        return self.area.columns
 
     def _arrange(self):
         """The grid laid out again for the storms ticked."""
-        while self.grid.count():
-            item = self.grid.takeAt(0)
-            if item.widget() is not None:
-                item.widget().hide()
-        for i in range(self.grid.columnCount()):
-            self.grid.setColumnStretch(i, 0)
-        for i in range(self.grid.rowCount()):
-            self.grid.setRowStretch(i, 0)
-        ids = self.shown_ids()
-        if not ids:
-            self.empty_label.setText(_NONE_TICKED if self._groups else _NONE_OFFERED)
-            self.grid.addWidget(self.empty_label, 0, 0)
-            self.empty_label.show()
-            self._show_buttons()
-            return
-        cols = self.columns()
-        for i, sid in enumerate(ids):
+        cells = []
+        for sid in self.shown_ids():
             widget = self._widgets.get(sid)
             if widget is None:
-                widget = self._widgets[sid] = _StormCell(self._known[sid], self.grid_widget)
-                widget.picture.clicked.connect(functools.partial(self.open_in_editor, sid))
-            self.grid.addWidget(widget, i // cols, i % cols)
-            widget.show()
-        for c in range(cols):
-            self.grid.setColumnStretch(c, 1)
-        for r in range((len(ids) + cols - 1) // cols):
-            self.grid.setRowStretch(r, 1)
+                widget = self._widgets[sid] = _StormCell(self._known[sid], self.area)
+                widget.pane.hovered.connect(functools.partial(self._on_hover, sid))
+                widget.pane.clicked.connect(functools.partial(self._on_click, sid))
+                widget.opened.connect(functools.partial(self.open_storm, sid))
+            cells.append(widget)
+        self.area.set_cells(cells, "" if cells else _NONE_TICKED if self._groups else _NONE_OFFERED)
         self._show_buttons()
 
     def cell(self, sid):
-        """The storm `sid` on screen (_StormCell), or None."""
+        """The storm `sid` on screen (_StormCell: its `pane` and `caption`), or None."""
         return self._widgets.get(sid)
 
     def _schedule(self):
         """The editor drew: the grid follows within REDRAW_MS -- once for a burst of edits,
-        and every REDRAW_MS while a drag goes on."""
-        if self.isVisible() and not self._timer.isActive():
+        and every REDRAW_MS while a drag goes on. Not while the editor shows one storm."""
+        if self.on_show() and not self._timer.isActive():
             self._timer.start()
 
     def redraw(self):
-        """Draw every storm in the grid with the table as it is now (a storm already drawn
-        with it is left as it is)."""
+        """Draw every storm in the grid with the table as it is now: the rows of each storm
+        for its range (worked out once per range) and the table's colors, looked up when
+        it is next painted."""
         self._timer.stop()
         if self.editor.model.kind != self._kind:
             self._follow_kind()
-        self.setWindowTitle(f"Other storms -- {self.editor.table_name()}")
         table = self.editor.drawn_table()
+        if table is not None and self._lut[0] is not table:
+            self._lut = (table, colortable_preview.lut_for(table[0]))
         current = self.editor._picture_choice
+        running = self._running[2] if self._running and self._running[1] == "cell" else None
         for sid in self.shown_ids():
-            picture = self._widgets[sid].picture
-            picture.current = current == f"bundled:{sid}"
+            widget = self._widgets[sid]
+            pane = widget.pane
+            was = (pane.message, pane.full_shape)
+            pane.set_current(current == f"bundled:{sid}")
             cell = self._cells.get(sid)
             if cell is None:
-                picture.set_message("Loading…" if self._running and self._running[2] == sid else "Waiting to load…")
+                pane.set_message("Loading…" if running == sid else "Waiting to load…")
             elif table is None:
-                picture.set_message("This table can't be drawn yet.")
-            elif picture.drawn_for is not table:
-                picture.set_rgba(self.cell_rgba(cell, table), table)
+                pane.set_message("This table can't be drawn yet.")
             else:
-                picture.update()
+                cmap, vmax_k, vmin_k = table
+                vmax_d, vmin_d = cell.source.drawing_range(vmax_k, vmin_k)
+                if pane.message:
+                    pane.set_message("")
+                pane.set_index_image(cell.source.rows(Normalize(vmin=vmin_d, vmax=vmax_d), cmap.N),
+                                     stride=cell.stride, full_shape=cell.saved_shape)
+                pane.set_lut(self._lut[1])
+            if (pane.message, pane.full_shape) != was:
+                widget.place()          # words in the picture's place, or a picture of another shape
         self._show_buttons()
 
-    def cell_rgba(self, cell, table):
-        """RGBA bytes of a storm (Cell) through the table (the editor's drawn_table): its rows
-        for the range it is drawn at, worked out once per range, then the table's colors
-        looked up -- what render.render would color its thinned pixels."""
-        cmap, vmax_k, vmin_k = table
-        if self._lut[0] is not table:
-            self._lut = (table, colortable_preview.lut_for(cmap))
-        vmax_d, vmin_d = cell.source.drawing_range(vmax_k, vmin_k)
-        rows = cell.source.rows(Normalize(vmin=vmin_d, vmax=vmax_d), cmap.N)
-        return colortable_preview.apply(rows, self._lut[1])
+    # ------------------------------------------------------------------ the mouse on a storm
 
-    def open_in_editor(self, sid):
-        """Show storm `sid` in the editor's Picture box. Whether it is shown."""
-        shown = self.editor.show_sample(sid)
+    def spot(self, sid, row, col):
+        """What storm `sid` shows at its saved picture's pixel (row, col), as the editor's
+        picture_spot says it of the one picture (a PictureSpot, or None): the pixel the
+        thinned one shown was kept from (PreviewSource.saved_pixel), whose value the
+        thinned values hold, at the range the storm is drawn at -- 0 to -90 °C on a
+        water-vapor storm, whatever the table's."""
+        cell = self._cells.get(sid)
+        if cell is None:
+            return None
+        raw = cell.source.saved_value(row // cell.stride, col // cell.stride)
+        return self.editor.spot_for(raw, cell.source)
+
+    def _on_hover(self, sid, pixel):
+        self.editor.show_spot(None if pixel is None else self.spot(sid, *pixel))
+
+    def _on_click(self, sid, row, col, add):
+        self.editor.pick_spot(self.spot(sid, row, col), add=add)
+
+    def open_storm(self, sid):
+        """Show storm `sid` on its own: the editor's One storm, with it in the Picture box (a
+        double-click on it). Whether it is shown."""
+        shown = self.editor.open_storm(sid)
         sample = self._known.get(sid)
-        if shown:
-            self._say(f"{storm_words(sample)} is open in the editor.")
-        elif sample is not None:
-            self._say(f"{sample.label} couldn't be opened in the editor.")
-        self.redraw()
+        if not shown and sample is not None:
+            self._say(f"{sample.label} couldn't be opened on its own.")
         return shown
 
     # ------------------------------------------------------------------ reading, one at a time
@@ -626,8 +773,14 @@ class StormGridDialog(QDialog):
         """A storm that couldn't be read: out of the grid, and said so."""
         self._failed[sid] = why
         sample = self._known[sid]
-        self._say(f"{sample.label} couldn't be opened ({why}), so it is left out of the grid.")
+        self._note = f"{sample.label} couldn't be opened ({why}), so it is left out of the grid."
+        self._show_status()
         self._show_failed()
+        widget = self._widgets.pop(sid, None)
+        if widget is not None:
+            widget.hide()
+            widget.setParent(None)
+            widget.deleteLater()
         self._arrange()
         if self._handover is not None:
             # said again once the grid is handed over, which says something else
@@ -641,13 +794,15 @@ class StormGridDialog(QDialog):
         what = "it" if len(self._left_now) == 1 else "they"
         return f" Left out, as {what} couldn't be opened: {', '.join(self._left_now)}."
 
-    # ------------------------------------------------------------------ the line under the grid
+    # ------------------------------------------------------------------ what is said
 
     def _say(self, text):
-        self._note = text
-        self._show_status()
+        """A sentence about what a button did, in the editor's status line (as the one
+        picture's Copy picture says how it went)."""
+        self.editor.say(text)
 
     def _show_status(self):
+        """The line under the grid: what is being read, and what was left out."""
         lines = []
         if self._running is not None:
             _number, task, sid, _room = self._running
@@ -662,6 +817,7 @@ class StormGridDialog(QDialog):
         if self._note:
             lines.append(self._note)
         self.status.setText("\n".join(lines))
+        self.status.setVisible(bool(lines))
 
     def _show_buttons(self):
         ready = self.editor.drawn_table() is not None and bool(self.shown_ids()) and self._handover is None
@@ -672,7 +828,7 @@ class StormGridDialog(QDialog):
 
     def copy_grid(self):
         """Copy grid: the grid as one picture (share_card) onto the clipboard, once its
-        storms are read. Whether it was started (the line under the grid says how it went)."""
+        storms are read. Whether it was started (the status line says how it went)."""
         return self._hand_over("copy")
 
     def save_grid(self):
@@ -709,7 +865,7 @@ class StormGridDialog(QDialog):
             return False
         ids = self.shown_ids()
         if not ids:
-            self._say(f"Tick a storm first: there is no grid to {verb}.")
+            self._say(f"Tick a storm under Storms… first: there is no grid to {verb}.")
             return False
         cmap, vmax_k, vmin_k = table
         # the table as it is now: further edits while the storms are read don't change it
@@ -764,6 +920,8 @@ class StormGridDialog(QDialog):
 
     def _check_handover(self):
         """Every storm of the grid read: hand it over."""
+        # the editor's module, which imports this one: its save folder and its helpers
+        from tcviz_gui.pages import colortable_editor_dialog as editor_module
         handover = self._handover
         if handover is None or handover.room is None:
             return
@@ -777,7 +935,8 @@ class StormGridDialog(QDialog):
         if handover.action == "share":
             from tcviz_gui.pages.share_card_dialog import ShareCardDialog
             window = ShareCardDialog(self.editor, pictures, handover.name, handover.units)
-            self._say(self._left_words().strip())
+            if self._left_now:
+                self._say(self._left_words().strip())
             self.editor._run(window)
             return
         with editor_module._busy():
@@ -803,36 +962,3 @@ class StormGridDialog(QDialog):
                 return
         editor_module._last_save_folder = handover.path.parent
         self._say(f"Saved the grid, {words}, as {handover.path}." + self._left_words())
-
-    # ------------------------------------------------------------------ the window's place, remembered
-
-    def _restore_layout(self):
-        """Open the size and in the place it was left (window_layout), fitted to the screen;
-        the first time, at _DEFAULT_SIZE or as much of the screen as there is."""
-        kept = window_layout.get(LAYOUT_RECORD)
-        room = colortable_widgets.screen_room(self)
-        self.resize(*(window_layout.fit_size(kept.get("size"), room) or window_layout.fit_size(_DEFAULT_SIZE, room)))
-        position = kept.get("position")
-        if (isinstance(position, list) and len(position) == 2
-                and all(isinstance(v, int) and not isinstance(v, bool) for v in position)
-                and QGuiApplication.screenAt(QPoint(position[0] + 40, position[1] + 20)) is not None):
-            self.move(*position)
-
-    def _remember_layout(self):
-        """Keep the window's size and place for next time (once it has been on screen)."""
-        if self._layout_shown:
-            window_layout.update(LAYOUT_RECORD, {"size": [self.width(), self.height()],
-                                              "position": [self.x(), self.y()]})
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        self._layout_shown = True
-        # edits made while it was hidden
-        self.redraw()
-
-    def done(self, result):
-        # closed, it is only hidden: the storms read stay for next time, while the editor is open
-        with contextlib.suppress(Exception):
-            self._remember_layout()
-        self._timer.stop()
-        super().done(result)
