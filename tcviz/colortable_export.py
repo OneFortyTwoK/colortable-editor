@@ -16,8 +16,10 @@ The block is the one the built-in curves are written in, and the one people shar
 
 A repeated position is a hard step (user_colortables.build_cmap separates the pair by
 1e-6, as the curves in colormaps.py and extra_cmaps.py do). `a/120` is a degrees below
-the warm end of a 120-degree range; a stop that is not on a whole degree is written as
-its exact decimal. A table with other than 256 levels says so on the closing line,
+the warm end of a 120-degree range. Every position is written that way, always over the
+table's own range (2026-10-07): a stop that is not on a whole degree is the fraction with
+the fewest decimals on top that still draws every color the same (31.15/135), never a bare
+decimal or another bottom number (_in_fractions). A table with other than 256 levels says so on the closing line,
 `], N=57)`, so it comes back with the same number of colors.
 
 Nothing is handed out on trust. Every block is read back with
@@ -171,10 +173,121 @@ def _first_exact(target, notes):
             continue
         why = _mismatch(text, target)
         if why is None:
+            try:
+                text = _in_fractions(target.name, draft, notes, lambda t: _mismatch(t, target) is None)
+            except ExportError as e:
+                problems.append(f"{tier}: {e}")
+                continue
             return Exported(target.name, text, tier)
         problems.append(f"{tier}: {why}")
     raise ExportError(f"{target.name}: no block reproduces it exactly "
                       f"({'; '.join(problems) or 'nothing to try'})")
+
+
+def _in_fractions(name, draft, notes, reproduces):
+    """The block of `draft` with every position a fraction of its range, a/span: a shared
+    table is ALWAYS written in fractions (2026-10-07), as the built-in curves are.
+
+    A position the tiers wrote as a bare decimal (0.23073974074074055 in bd, a stop of yours
+    saved as 0.006667) becomes the fraction with the fewest decimals on top that still draws
+    every color the same -- `reproduces(text)`, the same check every block passes (31.15/135,
+    1/150) -- tried first all at once, then a repeated position at a time from the warm end,
+    the ones not yet tried left as they were (which reproduce). A range that is not a whole
+    number is written as it is (x/100.846688976 for the SAR wind table's 100.846688976 kt).
+
+    A position moves at most _LEEWAY of the way to the stops either side of it: with 256
+    colors over 150 degrees, five stops 0.07 degrees apart all draw the same written as 0/150,
+    and the table's own stops would come back as one. ExportError if a position has no
+    fraction that draws the same."""
+    span, span_text = _span(draft)
+    stops = list(draft.stops)
+    groups, start = [], 0
+    for i in range(1, len(stops) + 1):
+        if i == len(stops) or stops[i][0] != stops[start][0]:
+            groups.append((start, i))           # a repeated position (a hard step) moves as one
+            start = i
+    todo = [g for g in groups if "/" not in stops[g[0]][0]]
+    if not todo:
+        return _render(name, draft, notes)
+    values = [stops[a][1] for a, _b in groups]
+    options = {}
+    for k, g in enumerate(groups):
+        if g in todo:
+            gaps = [abs(values[k] - values[j]) for j in (k - 1, k + 1)
+                    if 0 <= j < len(values) and values[j] != values[k]]
+            room = _LEEWAY * min(gaps) if gaps else math.inf
+            options[g] = [o for o in _fraction_candidates(values[k], span, span_text)
+                          if abs(o[1] - values[k]) <= room]
+            if not options[g]:
+                raise ExportError(f"the stop at {values[k]!r} has no fraction of {span_text} "
+                                  f"close enough to it")
+
+    def block(chosen):
+        out = list(stops)
+        for (a, b), (text, value) in chosen.items():
+            out[a:b] = [(text, value, rgb) for _t, _v, rgb in stops[a:b]]
+        return _render(name, draft._replace(stops=out), notes)
+
+    text = block({g: options[g][0] for g in todo})
+    if reproduces(text):
+        return text
+    chosen = {}
+    for g in todo:
+        for option in options[g]:
+            text = block({**chosen, g: option})
+            if reproduces(text):
+                chosen[g] = option
+                break
+        else:
+            raise ExportError(f"the stop at {stops[g[0]][1]!r} has no fraction of {span_text} "
+                              f"that draws the same colors")
+    return block(chosen)
+
+
+# How far toward the stops either side of it a position may move to become a tidier fraction.
+_LEEWAY = 0.25
+
+
+def _span(draft):
+    """(span, its text): the range a block's fractions are of, in its units -- the whole
+    number the tiers' own fractions use when it is one (135 for 40 to -94.99999999999997),
+    else the range exactly as it is."""
+    vmax, vmin = float(draft.vmax_text), float(draft.vmin_text)
+    whole = _whole_span(vmax, vmin)
+    if whole:
+        return float(whole), str(whole)
+    span = vmax - vmin
+    if not (math.isfinite(span) and span > 0):
+        raise ExportError(f"its range ({draft.vmin_text} to {draft.vmax_text}) has no width "
+                          f"to write positions over")
+    return span, _decimal(span)
+
+
+def _fraction_candidates(value, span, span_text):
+    """[(text, value)] for a position as a/span, tidiest first: the top number in whole
+    units, then tenths, hundredths and on, then the numbers that give the position exactly.
+
+    Always over the range itself, never another bottom number (2026-10-07: a scale from 50
+    to -100 shows its fractions out of 150 only). Where no top number gives the position to
+    the last bit and the colors need it there (a curve anchored at 6/13 of a 100-degree
+    range), this way of writing the table fails and the next is tried."""
+    out, seen = [], set()
+    x = value * span
+    for digits in range(18):
+        num = f"{round(x, digits):.{digits}f}"
+        if "." in num:
+            num = num.rstrip("0").rstrip(".")
+        if num in ("-0", ""):
+            num = "0"
+        if num not in seen:
+            seen.add(num)
+            out.append((f"{num}/{span_text}", float(num) / span))
+    for candidate in (x, *_neighbors(x, 8)):
+        num = _decimal(candidate)
+        if num not in seen and float(num) / span == value:
+            seen.add(num)
+            out.append((f"{num}/{span_text}", value))
+    return out
 
 
 def export_block(name, include_notes=False):
@@ -241,7 +354,7 @@ def entry_block(entry, include_notes=False):
     try:
         cmap, vmax, vmin = user_colortables.build_cmap(entry)
     except Exception:
-        text = _render(name, _entry_draft(entry), notes)
+        text = _in_fractions(name, _entry_draft(entry), notes, lambda t: _gives_back(t, entry))
         _check_stops_only(text, entry)
         return text
     target = _Target(name, cmap, None, vmax, vmin, colorize.table(cmap), cmap.N, entry)
@@ -929,7 +1042,9 @@ def _mismatch(text, target):
 
 def _check_stops_only(text, entry):
     """For an entry that does not build: the block must give back its stops, range and
-    direction exactly, so pasting it back changes nothing."""
+    direction, so pasting it back changes nothing. A position may come back within
+    _STOP_SLACK of where it was: written as a fraction it cannot always be the same number
+    to the last bit, and such a table has no colors yet to compare instead."""
     fields = user_colortables.parse_shareable(text)
     want = [(float(p), to_hex(c)) for p, c in entry["stops"]]
     got = [(p, to_hex(c)) for p, c in fields["stops"]]
@@ -937,5 +1052,19 @@ def _check_stops_only(text, entry):
     keys = ("vmax_c", "vmin_c") if stored["units"] == "C" else ("vmax", "vmin")
     same_range = (fields.get(keys[0]), fields.get(keys[1])) == (float(stored["vmax"]), float(stored["vmin"]))
     same_range = same_range and fields.get("units", "C") == stored["units"]
-    if got != want or not same_range or fields.get("reversed_") != bool(entry.get("reversed", True)):
+    same_stops = len(got) == len(want) and all(
+        c1 == c2 and abs(p1 - p2) <= _STOP_SLACK for (p1, c1), (p2, c2) in zip(got, want))
+    if not same_stops or not same_range or fields.get("reversed_") != bool(entry.get("reversed", True)):
         raise ExportError(f"{entry.get('name')}: the block does not give back the same stops")
+
+
+# How far a stop of a table that does not build yet may come back from where it was.
+_STOP_SLACK = 1e-12
+
+
+def _gives_back(text, entry):
+    try:
+        _check_stops_only(text, entry)
+    except (ExportError, ValueError):
+        return False
+    return True

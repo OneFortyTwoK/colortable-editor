@@ -14,7 +14,7 @@ on your own computer.
 
 ## What it can do
 
-**Build a table on a real storm.** The program comes with 23 real satellite pictures of
+**Build a table on a real storm.** The program comes with 32 real satellite pictures of
 storms (below). Point at the picture to read the temperature there, and click it to choose
 the stop that colors that spot.
 
@@ -131,7 +131,7 @@ To keep your tables somewhere else (on a USB stick, say), set the environment va
 
 ## The sample storms
 
-The program comes with 23 real satellite pictures of storms to try your tables on, each the 13-degree box around the storm. Choose one in the editor's **Picture** box.
+The program comes with 32 real satellite pictures of storms to try your tables on, each the 13-degree box around the storm. Choose one in the editor's **Picture** box.
 
 **Infrared:**
 
@@ -149,6 +149,15 @@ The program comes with 23 real satellite pictures of storms to try your tables o
 - **Cyclone Narelle (2026) at 95 knots on 2026-03-18T15:22Z** (South Pacific; NOAA-21 VIIRS, 375 m pixels)
 - **Hurricane Genevieve (2026) at 140 knots on 2026-07-27T08:40Z** (East Pacific; GOES-18 ABI, 2.6 km pixels)
 - **Hurricane Lala (2026) at 115 knots on 2026-08-19T05:20Z** (Central Pacific; GOES-18 ABI, 3.0 km pixels)
+- **Cyclone Alfred (2025) at 105 knots on 2025-02-28T03:00Z** (South Pacific; Himawari-9 AHI, 2.5 km pixels)
+- **Cyclone Bheki (2024) at 115 knots on 2024-11-17T13:04Z** (South Indian Ocean; Meteosat-9 SEVIRI, 3.9 km pixels)
+- **Typhoon Lan (2023) at 70 knots on 2023-08-13T08:50Z** (West Pacific; Himawari-9 AHI, 2.9 km pixels)
+- **Hurricane Alex (2016) at 75 knots on 2016-01-14T14:10Z** (Atlantic; Meteosat-10 SEVIRI, 5.1 km pixels)
+- **Hurricane Linda (2021) at 80 knots on 2021-08-17T10:21Z** (East Pacific; S-NPP VIIRS, 375 m pixels)
+- **Hurricane Danielle (2022) at 75 knots on 2022-09-04T15:30Z** (Atlantic; GOES-16 ABI, 4.3 km pixels)
+- **Hurricane Danielle (2022) at 75 knots on 2022-09-04T16:00Z** (Atlantic; NOAA-20 VIIRS, 375 m pixels)
+- **Hurricane Linda (2021) at 75 knots on 2021-08-17T04:00Z** (East Pacific; GOES-17 ABI, 2.4 km pixels)
+- **Hurricane Pablo (2019) at 70 knots on 2019-10-27T15:11Z** (Atlantic; Meteosat-11 SEVIRI, 6.5 km pixels)
 - **Tropical Storm Rachel (2026) at 60 knots on 2026-09-30T00:00Z** (East Pacific; GOES-18 ABI, 2.9 km pixels)
 - **Hurricane Katrina (2005) at 150 knots on 2005-08-28T17:45Z** (Atlantic; GOES-12 Imager, 4.5 km pixels)
 - **Tropical Storm Elida (2026) at 55 knots on 2026-07-17T03:40Z** (East Pacific; GOES-18 ABI, 2.4 km pixels)
@@ -162,7 +171,7 @@ The program comes with 23 real satellite pictures of storms to try your tables o
 - **Hurricane Genevieve (2026) at 115 knots on 2026-07-26T18:40Z** (East Pacific; GOES-18 ABI, 2.7 km pixels)
 - **Hurricane Lowell (2026) at 130 knots on 2026-09-02T12:00Z** (Central Pacific; GOES-18 ABI, 2.3 km pixels)
 
-Sample pictures: NOAA GOES, and NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data Dissemination; GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; NASA Terra and Aqua MODIS and Suomi NPP VIIRS (Haiyan 2013) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from JAXA G-Portal. Original data for this value added data product was provided by Japan Aerospace Exploration Agency.
+Sample pictures: NOAA GOES, JMA Himawari-9 (Lan 2023, Alfred 2025), and NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data Dissemination; GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; EUMETSAT Meteosat-9, Meteosat-10 and Meteosat-11 SEVIRI (Bheki 2024, Alex 2016, Pablo 2019) from EUMETSAT's Data Store (contains modified EUMETSAT Meteosat data 2026); NASA Terra and Aqua MODIS and Suomi NPP VIIRS (Haiyan 2013, Linda 2021) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from JAXA G-Portal. Original data for this value added data product was provided by Japan Aerospace Exploration Agency.
 
 ## Build it yourself
 

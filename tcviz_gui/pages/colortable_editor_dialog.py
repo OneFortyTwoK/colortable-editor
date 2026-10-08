@@ -4,7 +4,8 @@ redrawn through the table as you edit -- beside any other table, if you like, fo
 comparison.
 
 It opens for a new table (mode "add"), one of yours (mode "edit": saving over its own
-name replaces it without asking, and a new name renames it, favorites and all) and a copy
+name replaces it without asking, and a new name saves a new table beside it, the one
+opened left as it was -- renaming is the Manage window's Rename) and a copy
 of any infrared or water-vapor table (mode "copy", from colortable_library.duplicate_draft,
 which draws exactly what the original draws). A table is infrared or water vapor (in
 degrees C), winds (in knots) or radar (in dBZ): the Kind box switches it, and the range,
@@ -356,7 +357,8 @@ class ColortableEditorDialog(QDialog):
         layout = QVBoxLayout(self)
 
         if self._original is not None:
-            note = QLabel(f"Editing your table '{self._original}'. Save replaces it; a new name renames it.")
+            note = QLabel(f"Editing your table '{self._original}'. Save replaces it; a new name saves a "
+                          f"new table beside it.")
             note.setWordWrap(True)
             layout.addWidget(note)
 
@@ -1912,8 +1914,14 @@ class ColortableEditorDialog(QDialog):
         # what could not be kept in History, said by whoever opened the editor (it closes)
         problems = []
 
+        # Saved under a new name, an edited table of yours is a new table and the one opened
+        # stays as it was: liking the edits of a table and naming them anew used to rename the
+        # table away, leaving no way to keep both (2026-10-08). Renaming is the Manage window's
+        # Rename.
+        original = self._original if name == self._original else None
+
         def save(replace):
-            return colortable_library.save(name, self.model.stored_stops(), original=self._original,
+            return colortable_library.save(name, self.model.stored_stops(), original=original,
                                            replace=replace, history_problems=problems, **self.model.save_fields())
         try:
             try:
@@ -1943,7 +1951,7 @@ class ColortableEditorDialog(QDialog):
 
     def _announce(self, name):
         if self._original is not None and name != self._original:
-            library_events.notify("renamed", self._original, name)
+            library_events.notify("duplicated", self._original, name)   # a new table, made from it
         elif self._mode == "copy" and self._source:
             library_events.notify("duplicated", self._source, name)
         else:

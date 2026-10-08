@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 
 # What tcviz_native's functions are called, take and return; native/src/lib.rs has the same
 # number. A module with another one is not used at all.
-ABI_VERSION = 14
+ABI_VERSION = 20          # the color grades (grade_front, grade_back) removed, 2026-10-06
 
 # Elements per chunk in fixed_order_sum; native/src/lib.rs's SUM_CHUNK must match.
 SUM_CHUNK = 4096
@@ -152,8 +152,8 @@ def run(name, reference, *args, threads=None, compare=identical, finish=None, **
     both run, a difference by `compare` is logged, and numpy's result is returned.
 
     finish: for a kernel that leaves part of its answer to Python, what makes the kernel's
-    result the answer -- tcviz_native.nearest_samples hands back the pixels whose nearest
-    sample only scipy can choose, and finish asks scipy. It is applied to the module's
+    result the answer -- tcviz_native.sphere_nearest hands back the pixels whose nearest
+    point only pykdtree can choose, and finish asks pykdtree. It is applied to the module's
     result alone, before shadow mode compares it, and is not the kernel: what it raises
     is raised.
     """

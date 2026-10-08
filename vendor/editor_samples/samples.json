@@ -16,7 +16,8 @@
     "coldest_c": -89.6,
     "warmest_c": 23.8,
     "credit": "Data: NOAA GOES-19, NOAA Open Data Dissemination",
-    "source": "s3://noaa-goes19/ABI-L1b-RadF/2025/301/12/OR_ABI-L1b-RadF-M6C13_G19_s20253011210205_e20253011219525_c20253011219574.nc"
+    "source": "s3://noaa-goes19/ABI-L1b-RadF/2025/301/12/OR_ABI-L1b-RadF-M6C13_G19_s20253011210205_e20253011219525_c20253011219574.nc",
+    "dvorak_ring": "CMG"
   },
   {
     "id": "polo-2026-viirs",
@@ -35,7 +36,8 @@
     "coldest_c": -88.9,
     "warmest_c": 42.4,
     "credit": "Data: NOAA-20 VIIRS, NOAA Open Data Dissemination",
-    "source": "s3://noaa-nesdis-n20-pds/VIIRS-I5-SDR/2026/09/22/SVI05_j01_d20260922_t2006286_e2007513_b45833_c20260922203809203000_oeac_ops.h5"
+    "source": "s3://noaa-nesdis-n20-pds/VIIRS-I5-SDR/2026/09/22/SVI05_j01_d20260922_t2006286_e2007513_b45833_c20260922203809203000_oeac_ops.h5",
+    "dvorak_ring": "W"
   },
   {
     "id": "milton-2024",
@@ -54,7 +56,8 @@
     "coldest_c": -81.2,
     "warmest_c": 35.5,
     "credit": "Data: NOAA GOES-16, NOAA Open Data Dissemination",
-    "source": "s3://noaa-goes16/ABI-L1b-RadF/2024/281/20/OR_ABI-L1b-RadF-M6C13_G16_s20242812000205_e20242812009525_c20242812009582.nc"
+    "source": "s3://noaa-goes16/ABI-L1b-RadF/2024/281/20/OR_ABI-L1b-RadF-M6C13_G16_s20242812000205_e20242812009525_c20242812009582.nc",
+    "dvorak_ring": "CMG"
   },
   {
     "id": "nolo-2026-viirs",
@@ -73,7 +76,8 @@
     "coldest_c": -88.8,
     "warmest_c": 25.4,
     "credit": "Data: NOAA-20 VIIRS, NOAA Open Data Dissemination",
-    "source": "s3://noaa-nesdis-n20-pds/VIIRS-I5-SDR/2026/09/28/SVI05_j01_d20260928_t1208463_e1210108_b45913_c20260928124232338000_oeac_ops.h5"
+    "source": "s3://noaa-nesdis-n20-pds/VIIRS-I5-SDR/2026/09/28/SVI05_j01_d20260928_t1208463_e1210108_b45913_c20260928124232338000_oeac_ops.h5",
+    "dvorak_ring": "LG"
   },
   {
     "id": "milton-2024-viirs",
@@ -92,7 +96,8 @@
     "coldest_c": -84.3,
     "warmest_c": 38.4,
     "credit": "Data: NOAA-21 VIIRS, NOAA Open Data Dissemination",
-    "source": "s3://noaa-nesdis-n21-pds/VIIRS-I5-SDR/2024/10/07/SVI05_j02_d20241007_t1918176_e1919405_b09896_c20241007194720796000_oebc_ops.h5"
+    "source": "s3://noaa-nesdis-n21-pds/VIIRS-I5-SDR/2024/10/07/SVI05_j02_d20241007_t1918176_e1919405_b09896_c20241007194720796000_oebc_ops.h5",
+    "dvorak_ring": "CMG"
   },
   {
     "id": "polo-2026-viirs-night",
@@ -111,7 +116,8 @@
     "coldest_c": -97.7,
     "warmest_c": 29.1,
     "credit": "Data: NOAA-21 VIIRS, NOAA Open Data Dissemination",
-    "source": "s3://noaa-nesdis-n21-pds/VIIRS-I5-SDR/2026/09/22/SVI05_j02_d20260922_t0802245_e0803492_b20033_c20260922083739225000_oeac_ops.h5"
+    "source": "s3://noaa-nesdis-n21-pds/VIIRS-I5-SDR/2026/09/22/SVI05_j02_d20260922_t0802245_e0803492_b20033_c20260922083739225000_oeac_ops.h5",
+    "dvorak_ring": "CMG"
   },
   {
     "id": "haiyan-2013-viirs",
@@ -130,7 +136,8 @@
     "coldest_c": -98.7,
     "warmest_c": 20.6,
     "credit": "Data: Suomi NPP VIIRS, NASA LAADS DAAC",
-    "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/VNP02IMG/VNP02IMG.A2013311.1618.002.2021015211618.nc, with VNP03IMG positions"
+    "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/VNP02IMG/VNP02IMG.A2013311.1618.002.2021015211618.nc, with VNP03IMG positions",
+    "dvorak_ring": "CDG"
   },
   {
     "id": "haiyan-2013-modis",
@@ -149,7 +156,8 @@
     "coldest_c": -96.1,
     "warmest_c": 23.7,
     "credit": "Data: NASA Terra MODIS, NASA LAADS DAAC",
-    "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/MOD021KM/MOD021KM.A2013311.1345.007.2025085105720.nc"
+    "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/MOD021KM/MOD021KM.A2013311.1345.007.2025085105720.nc",
+    "dvorak_ring": "CDG"
   },
   {
     "id": "yutu-2018-sgli",
@@ -168,7 +176,8 @@
     "coldest_c": -98.3,
     "warmest_c": 26.8,
     "credit": "Data: JAXA GCOM-C SGLI. Original data for this value added data product was provided by Japan Aerospace Exploration Agency.",
-    "source": "https://gportal.jaxa.jp/download/standard/GCOM-C/GCOM-C.SGLI/L1B/2/2018/10/24/GC1SG1_201810241231M28501_1BSG_IRSNQ_2003.h5 and the next scene, GC1SG1_201810241232K28502_1BSG_IRSNQ_2003.h5"
+    "source": "https://gportal.jaxa.jp/download/standard/GCOM-C/GCOM-C.SGLI/L1B/2/2018/10/24/GC1SG1_201810241231M28501_1BSG_IRSNQ_2003.h5 and the next scene, GC1SG1_201810241232K28502_1BSG_IRSNQ_2003.h5",
+    "dvorak_ring": "CMG"
   },
   {
     "id": "nepartak-2016-modis",
@@ -187,7 +196,8 @@
     "coldest_c": -90.6,
     "warmest_c": 28.6,
     "credit": "Data: NASA Aqua MODIS, NASA LAADS DAAC",
-    "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/MYD021KM/MYD021KM.A2016188.0450.007.2025090211024.nc"
+    "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/MYD021KM/MYD021KM.A2016188.0450.007.2025090211024.nc",
+    "dvorak_ring": "CMG"
   },
   {
     "id": "mocha-2023-viirs",
@@ -244,7 +254,8 @@
     "coldest_c": -77.1,
     "warmest_c": 22.3,
     "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
-    "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/208/08/OR_ABI-L1b-RadF-M6C13_G18_s20262080840216_e20262080849535_c20262080849582.nc"
+    "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/208/08/OR_ABI-L1b-RadF-M6C13_G18_s20262080840216_e20262080849535_c20262080849582.nc",
+    "dvorak_ring": "B"
   },
   {
     "id": "lala-2026",
@@ -263,7 +274,188 @@
     "coldest_c": -73.2,
     "warmest_c": 24.1,
     "credit": "Data: NOAA GOES-18, NOAA Open Data Dissemination",
-    "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/231/05/OR_ABI-L1b-RadF-M6C13_G18_s20262310520205_e20262310529525_c20262310529547.nc"
+    "source": "s3://noaa-goes18/ABI-L1b-RadF/2026/231/05/OR_ABI-L1b-RadF-M6C13_G18_s20262310520205_e20262310529525_c20262310529547.nc",
+    "dvorak_ring": "LG"
+  },
+  {
+    "id": "alfred-2025",
+    "file": "alfred-2025.npz",
+    "kind": "ir",
+    "storm": "Alfred",
+    "year": 2025,
+    "basin": "South Pacific",
+    "satellite": "Himawari-9",
+    "instrument": "AHI",
+    "band": "IR",
+    "band_words": "10.4 µm infrared (AHI band 13)",
+    "obs_time_utc": "2025-02-28T03:00:00+00:00",
+    "pixel_km": 2.474,
+    "description": "Cyclone Alfred (2025) at 105 knots on 2025-02-28T03:00Z",
+    "coldest_c": -85.2,
+    "warmest_c": 47.8,
+    "credit": "Data: JMA Himawari-9, NOAA Open Data Dissemination",
+    "source": "s3://noaa-himawari9/AHI-L1b-FLDK/2025/02/28/0300/HS_H09_20250228_0300_B13_FLDK_R20_S0710.DAT.bz2 and the strip south of it, HS_H09_20250228_0300_B13_FLDK_R20_S0810.DAT.bz2",
+    "dvorak_ring": "B"
+  },
+  {
+    "id": "bheki-2024",
+    "file": "bheki-2024.npz",
+    "kind": "ir",
+    "storm": "Bheki",
+    "year": 2024,
+    "basin": "South Indian Ocean",
+    "satellite": "Meteosat-9",
+    "instrument": "SEVIRI",
+    "band": "IR",
+    "band_words": "10.8 µm infrared (SEVIRI channel 9)",
+    "obs_time_utc": "2024-11-17T13:04:49.064000+00:00",
+    "pixel_km": 3.911,
+    "description": "Cyclone Bheki (2024) at 115 knots on 2024-11-17T13:04Z",
+    "coldest_c": -77.7,
+    "warmest_c": 25.4,
+    "credit": "Data: EUMETSAT Meteosat-9, EUMETSAT Data Store. Contains modified EUMETSAT Meteosat data 2026.",
+    "source": "https://api.eumetsat.int/data/download/1.0.0/collections/EO%3AEUM%3ADAT%3AMSG%3AHRSEVIRI-IODC/products/MSG2-SEVI-MSG15-0100-NA-20241117131240.358000000Z-NA, the scan of 13:00 to 13:12",
+    "dvorak_ring": "LG"
+  },
+  {
+    "id": "lan-2023",
+    "file": "lan-2023.npz",
+    "kind": "ir",
+    "storm": "Lan",
+    "year": 2023,
+    "basin": "West Pacific",
+    "satellite": "Himawari-9",
+    "instrument": "AHI",
+    "band": "IR",
+    "band_words": "10.4 µm infrared (AHI band 13)",
+    "obs_time_utc": "2023-08-13T08:50:00+00:00",
+    "pixel_km": 2.866,
+    "description": "Typhoon Lan (2023) at 70 knots on 2023-08-13T08:50Z",
+    "coldest_c": -74.5,
+    "warmest_c": 27.8,
+    "credit": "Data: JMA Himawari-9, NOAA Open Data Dissemination",
+    "source": "s3://noaa-himawari9/AHI-L1b-FLDK/2023/08/13/0850/HS_H09_20230813_0850_B13_FLDK_R20_S0210.DAT.bz2",
+    "dvorak_ring": "MG"
+  },
+  {
+    "id": "alex-2016",
+    "file": "alex-2016.npz",
+    "kind": "ir",
+    "storm": "Alex",
+    "year": 2016,
+    "basin": "Atlantic",
+    "satellite": "Meteosat-10",
+    "instrument": "SEVIRI",
+    "band": "IR",
+    "band_words": "10.8 µm infrared (SEVIRI channel 9)",
+    "obs_time_utc": "2016-01-14T14:10:00.341000+00:00",
+    "pixel_km": 5.132,
+    "description": "Hurricane Alex (2016) at 75 knots on 2016-01-14T14:10Z",
+    "coldest_c": -63.8,
+    "warmest_c": 18.6,
+    "credit": "Data: EUMETSAT Meteosat-10, EUMETSAT Data Store. Contains modified EUMETSAT Meteosat data 2026.",
+    "source": "https://api.eumetsat.int/data/download/1.0.0/collections/EO%3AEUM%3ADAT%3AMSG%3AHRSEVIRI/products/MSG3-SEVI-MSG15-0100-NA-20160114141242.396000000Z-NA, the hourly scan of 14:00 to 14:12",
+    "dvorak_ring": "MG"
+  },
+  {
+    "id": "linda-2021-viirs",
+    "file": "linda-2021-viirs.npz",
+    "kind": "ir",
+    "storm": "Linda",
+    "year": 2021,
+    "basin": "East Pacific",
+    "satellite": "S-NPP",
+    "instrument": "VIIRS",
+    "band": "IR",
+    "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
+    "obs_time_utc": "2021-08-17T10:21:12.505029+00:00",
+    "pixel_km": 0.375,
+    "description": "Hurricane Linda (2021) at 80 knots on 2021-08-17T10:21Z",
+    "coldest_c": -72.2,
+    "warmest_c": 22.5,
+    "credit": "Data: Suomi NPP VIIRS, NASA LAADS DAAC",
+    "source": "https://data.laadsdaac.earthdatacloud.nasa.gov/prod-lads/VNP02IMG/VNP02IMG.A2021229.1018.002.2022267033839.nc, with VNP03IMG positions",
+    "dvorak_ring": "MG"
+  },
+  {
+    "id": "danielle-2022",
+    "file": "danielle-2022.npz",
+    "kind": "ir",
+    "storm": "Danielle",
+    "year": 2022,
+    "basin": "Atlantic",
+    "satellite": "GOES-16",
+    "instrument": "ABI",
+    "band": "IR",
+    "band_words": "10.3 µm infrared (ABI band 13)",
+    "obs_time_utc": "2022-09-04T15:30:20.500000+00:00",
+    "pixel_km": 4.269,
+    "description": "Hurricane Danielle (2022) at 75 knots on 2022-09-04T15:30Z",
+    "coldest_c": -66.7,
+    "warmest_c": 23.0,
+    "credit": "Data: NOAA GOES-16, NOAA Open Data Dissemination",
+    "source": "s3://noaa-goes16/ABI-L1b-RadF/2022/247/15/OR_ABI-L1b-RadF-M6C13_G16_s20222471530205_e20222471539524_c20222471539597.nc",
+    "dvorak_ring": "MG"
+  },
+  {
+    "id": "danielle-2022-viirs",
+    "file": "danielle-2022-viirs.npz",
+    "kind": "ir",
+    "storm": "Danielle",
+    "year": 2022,
+    "basin": "Atlantic",
+    "satellite": "NOAA-20",
+    "instrument": "VIIRS",
+    "band": "IR",
+    "band_words": "11.45 µm infrared (VIIRS I5, 375 m)",
+    "obs_time_utc": "2022-09-04T16:00:09.378496+00:00",
+    "pixel_km": 0.375,
+    "description": "Hurricane Danielle (2022) at 75 knots on 2022-09-04T16:00Z",
+    "coldest_c": -75.2,
+    "warmest_c": 24.4,
+    "credit": "Data: NOAA-20 VIIRS, NOAA Open Data Dissemination",
+    "source": "s3://noaa-nesdis-n20-pds/VIIRS-I5-SDR/2022/09/04/SVI05_j01_d20220904_t1559039_e1600284_b24847_c20220904161714454227_oebc_ops.h5",
+    "dvorak_ring": "DG"
+  },
+  {
+    "id": "linda-2021",
+    "file": "linda-2021.npz",
+    "kind": "ir",
+    "storm": "Linda",
+    "year": 2021,
+    "basin": "East Pacific",
+    "satellite": "GOES-17",
+    "instrument": "ABI",
+    "band": "IR",
+    "band_words": "10.3 µm infrared (ABI band 13)",
+    "obs_time_utc": "2021-08-17T04:00:31.900000+00:00",
+    "pixel_km": 2.376,
+    "description": "Hurricane Linda (2021) at 75 knots on 2021-08-17T04:00Z",
+    "coldest_c": -67.4,
+    "warmest_c": 23.0,
+    "credit": "Data: NOAA GOES-17, NOAA Open Data Dissemination",
+    "source": "s3://noaa-goes17/ABI-L1b-RadF/2021/229/04/OR_ABI-L1b-RadF-M6C13_G17_s20212290400319_e20212290409397_c20212290409444.nc",
+    "dvorak_ring": "DG"
+  },
+  {
+    "id": "pablo-2019",
+    "file": "pablo-2019.npz",
+    "kind": "ir",
+    "storm": "Pablo",
+    "year": 2019,
+    "basin": "Atlantic",
+    "satellite": "Meteosat-11",
+    "instrument": "SEVIRI",
+    "band": "IR",
+    "band_words": "10.8 µm infrared (SEVIRI channel 9)",
+    "obs_time_utc": "2019-10-27T15:11:02.203000+00:00",
+    "pixel_km": 6.49,
+    "description": "Hurricane Pablo (2019) at 70 knots on 2019-10-27T15:11Z",
+    "coldest_c": -60.5,
+    "warmest_c": 18.2,
+    "credit": "Data: EUMETSAT Meteosat-11, EUMETSAT Data Store. Contains modified EUMETSAT Meteosat data 2026.",
+    "source": "https://api.eumetsat.int/data/download/1.0.0/collections/EO%3AEUM%3ADAT%3AMSG%3AHRSEVIRI/products/MSG4-SEVI-MSG15-0100-NA-20191027151244.100000000Z-NA, the hourly scan of 15:00 to 15:12",
+    "dvorak_ring": "DG"
   },
   {
     "id": "rachel-2026",
@@ -301,7 +493,8 @@
     "coldest_c": -77.4,
     "warmest_c": 27.7,
     "credit": "Data: GOES-12 via NOAA NCEI GridSat-GOES",
-    "source": "https://www.ncei.noaa.gov/data/gridsat-goes/access/goes/2005/08/GridSat-GOES.goes12.2005.08.28.1800.v01.nc (channel ch4)"
+    "source": "https://www.ncei.noaa.gov/data/gridsat-goes/access/goes/2005/08/GridSat-GOES.goes12.2005.08.28.1800.v01.nc (channel ch4)",
+    "dvorak_ring": "B"
   },
   {
     "id": "elida-2026",

@@ -359,12 +359,12 @@ class ManageColortablesDialog(QDialog):
             dialog.restore_version(version)
         if not (self._run(dialog) and dialog.entry):
             return
-        # the editor has told the rest of the app already, a rename as a rename
+        # the editor has told the rest of the app already, a new name as a new table
         name = dialog.entry["name"]
         self.refresh(select=name)
         if name != table.name:
-            self._say(f"Saved your changes and renamed '{table.name}' to '{name}'."
-                      + self._builtin_back(table) + self._history_note(dialog.history_note))
+            self._say(f"Saved your changes as a new table, '{name}'; '{table.name}' is as it was."
+                      + self._history_note(dialog.history_note))
         else:
             self._say(f"Saved your changes to '{name}'." + self._history_note(dialog.history_note))
 

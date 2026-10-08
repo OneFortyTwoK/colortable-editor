@@ -60,7 +60,7 @@ DEFAULT_UNITS = "C"
 KNOWN_UNITS = ("C", "kt", "dBZ")
 DEFAULT_LEVELS = 256
 # A winds or radar table belongs to the picker group its built-in tables are in, so
-# products.categorize_palettes and the Open File window's unit list find it unchanged.
+# products.categorize_palettes and an opened file's unit list (localfile.palettes_for_units) find it unchanged.
 UNIT_CATEGORIES = {"kt": "SAR Wind", "dBZ": "Radar (dBZ)"}
 # The range a new table starts with, and an imported one without a range of its own gets:
 # the IR scale every curve here is drawn at, 0-100 kt (the SAR wind table's top is 100.8 kt), and

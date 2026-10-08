@@ -194,7 +194,7 @@ def test_the_smoke_run_draws_a_sample_through_a_table_and_exits_0(tmp_path):
                          text=True, encoding="utf-8", timeout=180)
     assert run.returncode == 0, run.stderr[-3000:]
     line = run.stdout.strip().splitlines()[-1]
-    assert line.startswith("Colortable Editor 1.0.0 smoke: 6 tables listed"), line
+    assert line.startswith("Colortable Editor 1.1.0 smoke: 6 tables listed"), line
     assert "drawn through ott2" in line and str(tmp_path / "editor") in line
     # the older samples and the font were found where the program keeps them
     assert "and 2 older ones" in line and "font JetBrainsMonoNerdFontMono-Bold.ttf" in line
@@ -230,7 +230,7 @@ def test_tcviz_is_the_default_and_only_the_two_editions_exist(monkeypatch):
 
 def test_importing_the_package_does_not_switch_the_edition():
     import colortable_editor
-    assert colortable_editor.__version__ == "1.0.0"
+    assert colortable_editor.__version__ == "1.1.0"
     assert edition.current() == edition.TCVIZ
 
 
@@ -1376,16 +1376,23 @@ def test_about_says_who_made_what(qapp, editor_edition):
     from colortable_editor import about
     from colortable_editor.main_window import MainWindow
     lines = about.about_lines()
-    credit = ("Sample pictures: NOAA GOES, and NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data "
-              "Dissemination; GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; NASA Terra and Aqua "
-              "MODIS and Suomi NPP VIIRS (Haiyan 2013) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from "
-              "JAXA G-Portal. Original data for this value added data product was provided by Japan "
-              "Aerospace Exploration Agency")
-    assert lines == ["Colortable Editor 1.0.0", "by OneFortyTwoK", "MIT License", "", about.BLURB, "", credit]
+    # (Himawari-9 and Meteosat SEVIRI joined the samples' sources on 2026-10-07: the weak eyes;
+    # Linda 2021's VIIRS from NASA LAADS, EUMETSAT's attribution line, and Alfred 2025 and
+    # Bheki 2024's Himawari-9 and Meteosat-9 on 2026-10-08)
+    credit = ("Sample pictures: NOAA GOES, JMA Himawari-9 (Lan 2023, Alfred 2025), and "
+              "NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data Dissemination; "
+              "GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; EUMETSAT Meteosat-9, "
+              "Meteosat-10 and Meteosat-11 SEVIRI (Bheki 2024, Alex 2016, Pablo 2019) from "
+              "EUMETSAT's Data Store (contains modified EUMETSAT Meteosat data 2026); NASA "
+              "Terra and Aqua MODIS and Suomi NPP VIIRS (Haiyan 2013, Linda 2021) from NASA "
+              "LAADS DAAC; GCOM-C SGLI (Yutu 2018) from JAXA G-Portal. Original data for "
+              "this value added data product was provided by Japan Aerospace Exploration "
+              "Agency")
+    assert lines == ["Colortable Editor 1.1.0", "by OneFortyTwoK", "MIT License", "", about.BLURB, "", credit]
 
     window = MainWindow()
     shown = window.about_dialog().plain_text()
-    for words in ("Colortable Editor 1.0.0", "by OneFortyTwoK", "MIT License", credit):
+    for words in ("Colortable Editor 1.1.0", "by OneFortyTwoK", "MIT License", credit):
         assert words in shown, words
     how = window.how_to_use_dialog().plain_text()
     assert "Making a table" in how and str(editor_edition["editor"]) in how

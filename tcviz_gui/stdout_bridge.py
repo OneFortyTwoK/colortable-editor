@@ -114,6 +114,10 @@ class QtStdoutBridge(QObject):
         self._lock = threading.Lock()
         self._owner = _thread_mark()
         self._passthrough_stream = passthrough_stream
+        # A redraw shown before its line ended (see write): its text, so the same text is
+        # not sent again when the next redraw or the final newline ends it.
+        self._redrawing = False
+        self._shown = None
 
     def claim_current_thread(self):
         """Make the thread calling this the bridge's own: a job's bridges are made on the
@@ -141,6 +145,16 @@ class QtStdoutBridge(QObject):
         with self._lock:
             self._buffer += s
             self._split_buffer(ready)
+            # A redraw is shown as soon as it is written. print_progress writes "\r" + its
+            # text with nothing after it, so the text used to wait for the NEXT write to end
+            # it: every update reached the log one update (~2 s) late, and a download that
+            # printed only 0% and then 100% showed nothing until it was done (reported
+            # 2026-10-05). Shown now as an overwrite, it is replaced in place by whatever
+            # ends it.
+            tail = self._buffer.rstrip("\r")
+            if self._redrawing and tail and tail != self._shown:
+                ready.append((tail, True))
+                self._shown = tail
         for line, is_overwrite in ready:
             self.line_written.emit(line, is_overwrite)
         return len(s)
@@ -169,8 +183,11 @@ class QtStdoutBridge(QObject):
                 is_overwrite = False
                 cut, advance = n, 1
             line, self._buffer = self._buffer[:cut], self._buffer[cut + advance:]
-            if line:
+            # already on screen as the redraw it was (see write): sent again only when a
+            # newline makes it final
+            if line and not (is_overwrite and line == self._shown):
                 ready.append((line, is_overwrite))
+            self._shown, self._redrawing = None, is_overwrite
 
     def flush(self):
         self._passthrough_stream.flush()
@@ -184,6 +201,6 @@ class QtStdoutBridge(QObject):
         # its own stray line.
         with self._lock:
             remainder = self._buffer.rstrip("\r")
-            self._buffer = ""
+            self._buffer, self._shown, self._redrawing = "", None, False
         if remainder:
             self.line_written.emit(remainder, False)

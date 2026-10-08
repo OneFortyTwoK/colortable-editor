@@ -9,17 +9,23 @@ a folder of its own. Start it with `python -m colortable_editor`.
 
 Importing this package changes nothing; only colortable_editor.__main__ switches the edition.
 """
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 APP_NAME = "Colortable Editor"
 AUTHOR = "OneFortyTwoK"
 LICENSE = "MIT License"
-# Every sample's source, as samples.json credits each one: NOAA's open buckets for GOES and
-# most VIIRS, NCEI's GridSat-GOES for Katrina 2005, NASA LAADS for the MODIS passes and Haiyan
-# 2013's VIIRS, and JAXA G-Portal for Yutu 2018's SGLI -- whose terms (G-Portal terms of use,
-# Article 7(2)) ask for that last sentence word for word.
-SAMPLES_CREDIT = ("Sample pictures: NOAA GOES, and NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data "
-                  "Dissemination; GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; NASA Terra and Aqua "
-                  "MODIS and Suomi NPP VIIRS (Haiyan 2013) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) from "
-                  "JAXA G-Portal. Original data for this value added data product was provided by Japan "
-                  "Aerospace Exploration Agency")
+# Every sample's source, as samples.json credits each one: NOAA's open buckets for GOES,
+# Himawari-9 and most VIIRS, NCEI's GridSat-GOES for Katrina 2005, EUMETSAT's Data Store for
+# the three Meteosat SEVIRI scans (with the line EUMETSAT's Data Policy asks for), NASA LAADS
+# for the MODIS passes and the VIIRS of Haiyan 2013 and Linda 2021, and JAXA G-Portal for Yutu
+# 2018's SGLI -- whose terms (G-Portal terms of use, Article 7(2)) ask for that last sentence
+# word for word.
+SAMPLES_CREDIT = ("Sample pictures: NOAA GOES, JMA Himawari-9 (Lan 2023, Alfred 2025), and "
+                  "NOAA-20, NOAA-21 and Suomi NPP VIIRS, from NOAA Open Data Dissemination; "
+                  "GOES-12 (Katrina 2005) from NOAA NCEI's GridSat-GOES; EUMETSAT "
+                  "Meteosat-9, Meteosat-10 and Meteosat-11 SEVIRI (Bheki 2024, Alex 2016, "
+                  "Pablo 2019) from EUMETSAT's Data Store (contains modified EUMETSAT "
+                  "Meteosat data 2026); NASA Terra and Aqua MODIS and Suomi NPP VIIRS "
+                  "(Haiyan 2013, Linda 2021) from NASA LAADS DAAC; GCOM-C SGLI (Yutu 2018) "
+                  "from JAXA G-Portal. Original data for this value added data product was "
+                  "provided by Japan Aerospace Exploration Agency")

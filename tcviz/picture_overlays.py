@@ -57,18 +57,29 @@ def overlay_caption(img, text, scale=1.0, corner="bl", fg=(255, 255, 255),
     Returns a new RGB image rather than drawing in place, because compositing the panel
     is what makes it translucent.
     """
-    width, height = img.size
-    font, _size, pad, inset = _style_metrics(height, scale)
+    font, box, origin = _caption_layout(img, text, scale, corner)
     layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
-    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    draw.rectangle(list(box), fill=(*bg, round(255 * bg_alpha)))
+    draw.text(origin, text, font=font, fill=(*fg, 255))
+    return _laid_over(img, layer)
+
+
+def caption_box(img, text, scale=1.0, corner="bl"):
+    """(left, top, right, bottom) of the panel overlay_caption would draw on `img` -- for
+    what must keep clear of it (the map's degree labels)."""
+    return _caption_layout(img, text, scale, corner)[1]
+
+
+def _caption_layout(img, text, scale, corner):
+    """(font, panel box, where the text is drawn) of overlay_caption on `img`."""
+    width, height = img.size
+    font, _size, pad, inset = _style_metrics(height, scale)
+    left, top, right, bottom = ImageDraw.Draw(Image.new("RGBA", (1, 1))).textbbox((0, 0), text, font=font)
     text_w, text_h = right - left, bottom - top
     x = inset if corner[1] == "l" else width - inset - text_w - 2 * pad
     y = inset if corner[0] == "t" else height - inset - text_h - 2 * pad
-    draw.rectangle([x, y, x + text_w + 2 * pad, y + text_h + 2 * pad],
-                   fill=(*bg, round(255 * bg_alpha)))
-    draw.text((x + pad - left, y + pad - top), text, font=font, fill=(*fg, 255))
-    return _laid_over(img, layer)
+    return font, (x, y, x + text_w + 2 * pad, y + text_h + 2 * pad), (x + pad - left, y + pad - top)
 
 
 def _laid_over(img, layer):
@@ -104,7 +115,7 @@ def caption_reserve_px(height):
 def overlay_colorbar(img, cmap, vmin, vmax, units="", ticks=None, scale=1.0,
                      extra_line=None, mark=None, mark_label=None,
                      height=_BAR_HEIGHT_FRAC, fg=(255, 255, 255), bg=(0, 0, 0),
-                     bg_alpha=0.66):
+                     bg_alpha=0.66, lift=0):
     """satellites.py's colorbar(): the scale INSIDE the picture, bottom-right, warm at top.
 
     Drawn on a translucent panel rather than bolted to the side, so the image keeps its
@@ -116,47 +127,19 @@ def overlay_colorbar(img, cmap, vmin, vmax, units="", ticks=None, scale=1.0,
 
     mark/mark_label put an arrow on the bar at one value and name it above -- the eye
     temperature, as satellites.py marks it. extra_line ("Max: 42 kt") sits under that.
+    lift raises the whole panel this many pixels off its place, so a second scale can sit
+    above another (render's day and night look carries two).
     """
-    width, img_h = img.size
-    font, size, pad, inset = _style_metrics(img_h, scale, font_factor=_BAR_FONT_FACTOR)
-    bar_w = max(5, round(img_h * _BAR_WIDTH_FRAC * scale))
-    tick_len = max(3, bar_w // 2)
-    arrow = size if mark is not None else 0
-
-    bar_h = round(img_h * height * scale)
-    tick_values = _colorbar_ticks(vmin, vmax, units, ticks, bar_h, size)
-    # The unit rides on each label rather than sitting alone at the top of the bar: one
-    # "K" above a column of numbers is easy to read past, and the top line is worth more
-    # as the eye temperature or the wind maximum. Celsius is the exception -- satellites.py
-    # heads an IR bar "°C" and leaves the numbers bare, which is the look being matched.
-    if units == "C":
-        labels = [f"{v - 273.15:.0f}" for v in tick_values]
-    elif units == "kt":
-        labels = [f"{v * _KT_PER_MS:.0f}kt" for v in tick_values]
-    else:
-        labels = [f"{v:.0f}{units}" for v in tick_values]
-    extra = extra_line if isinstance(extra_line, (list, tuple)) else [extra_line]
-    header = [s for s in (mark_label, *extra) if s]
-    if units == "C" and not header:
-        header = ["\u00b0C"]
-
-    probe = ImageDraw.Draw(img)
-    label_w = math.ceil(max(probe.textlength(t, font=font) for t in labels)) if labels else 0
-    head_w = math.ceil(max(probe.textlength(t, font=font) for t in header)) if header else 0
-    line_h = size + pad // 2
-
-    y1 = img_h - inset - pad                      # bar bottom, just above the image edge
-    y0 = y1 - bar_h
-    box_r = width - inset
-    body_w = arrow + bar_w + tick_len + pad // 2 + label_w
-    box_l = box_r - pad - max(body_w, head_w) - pad
-    bar_x0 = box_r - pad - label_w - pad // 2 - tick_len - bar_w
+    at = _colorbar_layout(img, vmin, vmax, units, ticks, scale, extra_line, mark, mark_label,
+                          height, lift)
+    font, size, pad, line_h = at["font"], at["size"], at["pad"], at["line_h"]
+    y0, y1, top, box_l = at["y0"], at["y1"], at["top"], at["box_l"]
+    bar_x0, bar_w, tick_len, arrow = at["bar_x0"], at["bar_w"], at["tick_len"], at["arrow"]
     bar_x1 = bar_x0 + bar_w
-    top = y0 - len(header) * line_h - pad
 
     layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
-    draw.rectangle([box_l, top - pad, box_r, y1 + pad], fill=(*bg, round(255 * bg_alpha)))
+    draw.rectangle(list(at["box"]), fill=(*bg, round(255 * bg_alpha)))
 
     frac = np.linspace(1, 0, max(1, y1 - y0))     # top row = vmax (warm), bottom = vmin
     rgb = (cmap(frac)[:, :3] * 255).round().astype(np.uint8)
@@ -164,14 +147,14 @@ def overlay_colorbar(img, cmap, vmin, vmax, units="", ticks=None, scale=1.0,
     layer.paste(strip, (bar_x0, y0))
 
     span = (vmax - vmin) or 1.0
-    for value, text in zip(tick_values, labels):
+    for value, text in zip(at["tick_values"], at["labels"]):
         y = y0 + (vmax - value) / span * (y1 - y0)
         draw.line([bar_x1, y, bar_x1 + tick_len - 1, y], fill=(*fg, 255),
                   width=max(1, size // 12))
         left, t, _r, b = draw.textbbox((0, 0), text, font=font)
         draw.text((bar_x1 + tick_len + pad // 2 - left, y - (b - t) / 2 - t), text,
                   font=font, fill=(*fg, 255))
-    for i, text in enumerate(header):
+    for i, text in enumerate(at["header"]):
         left, t, _r, _b = draw.textbbox((0, 0), text, font=font)
         draw.text((box_l + pad - left, top + i * line_h - t), text, font=font,
                   fill=(*fg, 255))
@@ -183,6 +166,89 @@ def overlay_colorbar(img, cmap, vmin, vmax, units="", ticks=None, scale=1.0,
                       (bar_x0 - arrow, y + arrow / 2)], fill=(*fg, 255),
                      outline=(0, 0, 0, 255))
     return _laid_over(img, layer)
+
+
+def colorbar_box(img, vmin, vmax, units="", ticks=None, scale=1.0, extra_line=None, mark=None,
+                 mark_label=None, height=_BAR_HEIGHT_FRAC, lift=0):
+    """(left, top, right, bottom) of the panel overlay_colorbar would draw on `img` with these
+    arguments -- for what must keep clear of it (the map's degree labels)."""
+    return _colorbar_layout(img, vmin, vmax, units, ticks, scale, extra_line, mark, mark_label,
+                            height, lift)["box"]
+
+
+def _colorbar_layout(img, vmin, vmax, units, ticks, scale, extra_line, mark, mark_label, height,
+                     lift):
+    """Where overlay_colorbar puts everything on `img`: its font, the bar, the ticks and their
+    labels, the header lines and the panel around them."""
+    width, img_h = img.size
+    font, size, pad, inset = _style_metrics(img_h, scale, font_factor=_BAR_FONT_FACTOR)
+    bar_w = max(5, round(img_h * _BAR_WIDTH_FRAC * scale))
+    tick_len = max(3, bar_w // 2)
+    arrow = size if mark is not None else 0
+
+    bar_h = round(img_h * height * scale)
+    tick_values = _colorbar_ticks(vmin, vmax, units, ticks, bar_h, size)
+    labels = colorbar_labels(tick_values, units, ticks)
+    extra = extra_line if isinstance(extra_line, (list, tuple)) else [extra_line]
+    header = [s for s in (mark_label, *extra) if s]
+    if units == "C" and not header:
+        header = ["\u00b0C"]
+
+    probe = ImageDraw.Draw(img)
+    label_w = math.ceil(max(probe.textlength(t, font=font) for t in labels)) if labels else 0
+    head_w = math.ceil(max(probe.textlength(t, font=font) for t in header)) if header else 0
+    line_h = size + pad // 2
+
+    y1 = img_h - inset - pad - lift               # bar bottom, just above the image edge
+    y0 = y1 - bar_h
+    box_r = width - inset
+    body_w = arrow + bar_w + tick_len + pad // 2 + label_w
+    box_l = box_r - pad - max(body_w, head_w) - pad
+    bar_x0 = box_r - pad - label_w - pad // 2 - tick_len - bar_w
+    top = y0 - len(header) * line_h - pad
+    return {"font": font, "size": size, "pad": pad, "line_h": line_h, "bar_w": bar_w,
+            "tick_len": tick_len, "arrow": arrow, "tick_values": tick_values, "labels": labels,
+            "header": header, "y0": y0, "y1": y1, "top": top, "box_l": box_l, "box_r": box_r,
+            "bar_x0": bar_x0, "box": (box_l, top - pad, box_r, y1 + pad)}
+
+
+def colorbar_labels(tick_values, units, ticks=None):
+    """The color bar's text for each tick value.
+
+    The unit rides on each label rather than sitting alone at the top of the bar: one "K"
+    above a column of numbers is easy to read past, and the top line is worth more as the
+    eye temperature or the wind maximum. Celsius is the exception -- satellites.py heads an
+    IR bar "°C" and leaves the numbers bare, which is the look being matched.
+
+    A palette's own published ticks keep the whole numbers they always had. The round
+    values _colorbar_ticks picks otherwise carry as many decimals as their step needs: RSS
+    cloud liquid water on 0-2.5 kg/m^2 read "0kg/m^2" six times over when every label was
+    written without any.
+    """
+    if units == "C":
+        return [f"{v - 273.15:.0f}" for v in tick_values]
+    if units == "kt":
+        return [f"{v * _KT_PER_MS:.0f}kt" for v in tick_values]
+    places = 0 if ticks is not None else _step_decimals(tick_values)
+    out = []
+    for v in tick_values:
+        text = f"{v:.{places}f}"
+        if float(text) == 0.0:
+            text = text.lstrip("-")           # never "-0" or "-0.0"
+        out.append(f"{text}{units}")
+    return out
+
+
+def _step_decimals(values):
+    """Decimal places that write the step between evenly spaced `values` exactly -- 0.5 needs
+    one, 0.25 two, 20 none (as gridlines._decimals does for the map's degree labels)."""
+    if len(values) < 2:
+        return 0
+    step = abs(values[1] - values[0])
+    for places in range(6):
+        if abs(round(step, places) - step) < 1e-9 * max(1.0, step):
+            return places
+    return 6
 
 
 def colorbar_preview(cmap, norm, vmax, vmin, units="", size=1600, ticks=None, plate=(40, 40, 40)):
@@ -250,8 +316,12 @@ def _colorbar_ticks(vmin, vmax, units, ticks, bar_height, font_size):
     evenly-spaced values it had, and a radar table of the user's at -10 to 70 dBZ reads
     0/20/40/60 rather than -10/6/22/38/54/70.
 
-    Everything else keeps the six evenly-spaced values: a reflectance percentage has no
-    equivalent of "round tens matter here".
+    Everything else -- reflectance in percent, Kelvin without a palette's own breakpoints,
+    kg/m^2, mm/h -- gets round values: the step 1, 2, 2.5 or 5 times a power of ten that
+    gives at most six intervals across the scale (matplotlib's MaxNLocator rule), widened
+    only when the labels would not fit. Six evenly spaced values used to land on 6, 13, 19
+    and 26 % of a visible scale topped at its sun angle, and on numbers that rounded to the
+    same label on a scale below a few units (RSS cloud liquid water read "0kg/m^2" six times).
     """
     if ticks is not None:
         return [t for t in ticks if vmin <= t <= vmax]
@@ -308,8 +378,38 @@ def _colorbar_ticks(vmin, vmax, units, ticks, bar_height, font_size):
             out.append(c + 273.15)
             c += step_c
         return out
-    n_ticks = 6
-    return [vmin + (vmax - vmin) * i / (n_ticks - 1) for i in range(n_ticks)]
+    return _nice_ticks(vmin, vmax, bar_height, font_size)
+
+
+# The steps _nice_ticks chooses from, times a power of ten, and the most intervals it wants.
+_NICE_STEPS = (1.0, 2.0, 2.5, 5.0, 10.0)
+_NICE_MAX_INTERVALS = 6
+
+
+def _nice_ticks(vmin, vmax, bar_height, font_size):
+    """Round values across vmin..vmax: the smallest step of _NICE_STEPS x a power of ten
+    that cuts the scale into at most _NICE_MAX_INTERVALS, or a wider one where the labels
+    would otherwise stack (as the Celsius rule widens). The values are whole multiples of the
+    step, worked out from integers so 0.1 + 0.2 never drifts into a label."""
+    span = vmax - vmin
+    if not (math.isfinite(span) and span > 0):
+        return [vmin]
+    power = 10.0 ** math.floor(math.log10(span / _NICE_MAX_INTERVALS))
+    steps = [m * power * 10.0 ** k for k in (0, 1, 2) for m in _NICE_STEPS]
+    chosen = None
+    for step in sorted(set(steps)):
+        if step * _NICE_MAX_INTERVALS < span * (1 - 1e-9):
+            continue                                  # more than six intervals
+        first, last = math.ceil(vmin / step - 1e-9), math.floor(vmax / step + 1e-9)
+        if last < first:
+            break                                     # wider still holds no value at all
+        chosen = (first, last, step)
+        if last == first or bar_height / (last - first) >= font_size * 1.4:
+            break
+    if chosen is None:
+        return [vmin, vmax]
+    first, last, step = chosen
+    return [n * step for n in range(first, last + 1)]
 
 
 def _upscale_factor(current_px, resample, target_px=None):
